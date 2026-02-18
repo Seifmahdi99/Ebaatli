@@ -1,0 +1,279 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MessageTemplate {
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String   // e.g., "Order Confirmation", "Abandoned Cart"
+  channel     String   // "sms", "whatsapp", "email"
+  language    String   @default("en")
+  subject     String?  // For email
+  content     String   @db.Text // Template with variables like {{customer_name}}
+  variables   Json?    // List of available variables
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([channel])
+}
+
+model Store {
+  id              String   @id @default(uuid())
+  platform        String
+  platformStoreId String   @map("platform_store_id")
+  name            String
+  timezone        String   @default("Africa/Cairo")
+  currency        String   @default("EGP")
+  accessToken     String   @map("access_token")
+  scope           String?
+  status          String   @default("active")
+  webhookSecret   String?  @map("webhook_secret")
+  
+  smsQuotaAllocated Int      @default(0) @map("sms_quota_allocated")
+  smsQuotaUsed      Int      @default(0) @map("sms_quota_used")
+  smsQuotaResetDate DateTime @default(now()) @map("sms_quota_reset_date")
+  smsSenderId       String?  @map("sms_sender_id")
+// WhatsApp Configuration
+  whatsappEnabled       Boolean   @default(false)
+  whatsappAccessToken   String?
+  whatsappPhoneNumberId String?
+  whatsappBusinessAccountId String?
+  whatsappQuotaAllocated Int      @default(0)
+  whatsappQuotaUsed     Int       @default(0)
+  whatsappQuotaResetDate DateTime @default(now())  
+  installedAt     DateTime @default(now()) @map("installed_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  subscriptions      Subscription[]
+  customers          Customer[]
+  orders             Order[]
+  automationFlows    AutomationFlow[]
+  events             Event[]
+  messageJobs        MessageJob[]
+  messageTemplates  MessageTemplate[]
+  whatsappConnection WhatsAppConnection?
+
+  @@unique([platform, platformStoreId])
+  @@index([platform, platformStoreId])
+  @@index([status])
+  @@map("stores")
+}
+
+model Subscription {
+  id        String    @id @default(uuid())
+  storeId   String    @map("store_id")
+  provider  String    @default("shopify")
+  plan      String
+  status    String
+  billingId String?   @map("billing_id")
+  startedAt DateTime  @default(now()) @map("started_at")
+  endedAt   DateTime? @map("ended_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model Customer {
+  id                 String   @id @default(uuid())
+  storeId            String   @map("store_id")
+  platformCustomerId String   @map("platform_customer_id")
+  firstName          String?  @map("first_name")
+  lastName           String?  @map("last_name")
+  phone              String?
+  email              String?
+  optedIn            Boolean  @default(true) @map("opted_in")
+  languagePreference String   @default("ar") @map("language_preference")
+  tags               String[] @default([])
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  store       Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orders      Order[]
+  messageJobs MessageJob[]
+
+  @@unique([storeId, platformCustomerId])
+  @@index([storeId, phone])
+  @@index([storeId, email])
+  @@map("customers")
+}
+
+model Order {
+  id                String   @id @default(uuid())
+  storeId           String   @map("store_id")
+  customerId        String?  @map("customer_id")
+  platformOrderId   String   @map("platform_order_id")
+  orderNumber       String   @map("order_number")
+  status            String
+  fulfillmentStatus String?  @map("fulfillment_status")
+  financialStatus   String?  @map("financial_status")
+  totalAmount       Decimal  @map("total_amount") @db.Decimal(10, 2)
+  currency          String
+  tags              String[] @default([])
+  rawPayload        Json     @map("raw_payload")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  store       Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  events      Event[]
+  messageJobs MessageJob[]
+
+  @@unique([storeId, platformOrderId])
+  @@index([storeId, status])
+  @@index([storeId, customerId])
+  @@index([orderNumber])
+  @@map("orders")
+}
+
+model AutomationFlow {
+  id              String    @id @default(uuid())
+  storeId         String    @map("store_id")
+  name            String
+  description     String?
+  trigger         String
+  isActive        Boolean   @default(true) @map("is_active")
+  lastTriggeredAt DateTime? @map("last_triggered_at")
+  triggerCount    Int       @default(0) @map("trigger_count")
+  successRate     Decimal?  @map("success_rate") @db.Decimal(5, 2)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  store           Store            @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  automationSteps AutomationStep[]
+  messageJobs     MessageJob[]
+
+  @@index([storeId, isActive])
+  @@index([trigger])
+  @@map("automation_flows")
+}
+
+model AutomationStep {
+  id        String   @id @default(uuid())
+  flowId    String   @map("flow_id")
+  stepOrder Int      @map("step_order")
+  type      String
+  config    Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  flow        AutomationFlow @relation(fields: [flowId], references: [id], onDelete: Cascade)
+  messageJobs MessageJob[]
+
+  @@index([flowId, stepOrder])
+  @@map("automation_steps")
+}
+
+model Event {
+  id          String    @id @default(uuid())
+  storeId     String    @map("store_id")
+  orderId     String?   @map("order_id")
+  type        String
+  referenceId String?   @map("reference_id")
+  payload     Json
+  receivedAt  DateTime  @default(now()) @map("received_at")
+  processedAt DateTime? @map("processed_at")
+  status      String    @default("pending")
+
+  store Store  @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([storeId, status])
+  @@index([type, processedAt])
+  @@map("events")
+}
+
+model MessageJob {
+  id          String    @id @default(uuid())
+  storeId     String    @map("store_id")
+  orderId     String?   @map("order_id")
+  customerId  String?   @map("customer_id")
+  flowId      String?   @map("flow_id")
+  stepId      String?   @map("step_id")
+  channel     String
+  scheduledAt DateTime  @map("scheduled_at")
+  status      String    @default("pending")
+  attempts    Int       @default(0)
+  retryConfig Json?     @map("retry_config")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  store    Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  order    Order?          @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  customer Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  flow     AutomationFlow? @relation(fields: [flowId], references: [id], onDelete: SetNull)
+  step     AutomationStep? @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@index([storeId, status])
+  @@index([status, scheduledAt])
+  @@index([channel])
+  @@map("message_jobs")
+}
+
+model Message {
+  id                String    @id @default(uuid())
+  jobId             String    @map("job_id")
+  provider          String
+  toNumber          String    @map("to_number")
+  content           String
+  templateId        String?   @map("template_id")
+  status            String
+  providerMessageId String?   @map("provider_message_id")
+  epushMsgId        String?   @map("epush_msg_id")
+  transactionPrice  Decimal?  @map("transaction_price") @db.Decimal(10, 4)
+  senderId          String?   @map("sender_id")
+  errorMessage      String?   @map("error_message")
+  sentAt            DateTime? @map("sent_at")
+  deliveredAt       DateTime? @map("delivered_at")
+  readAt            DateTime? @map("read_at")
+
+  job MessageJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@index([provider, providerMessageId])
+  @@index([epushMsgId])
+  @@map("messages")
+}
+
+model WhatsAppConnection {
+  id                String    @id @default(uuid())
+  storeId           String    @unique @map("store_id")
+  phoneNumberId     String    @map("phone_number_id")
+  businessAccountId String    @map("business_account_id")
+  accessToken       String    @map("access_token")
+  status            String    @default("connected")
+  verifiedAt        DateTime? @map("verified_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@index([storeId])
+  @@map("whatsapp_connections")
+}
+
+model MessageTemplate {
+  id         String   @id @default(uuid())
+  storeId    String   @map("store_id")
+  channel    String
+  name       String
+  templateId String?  @map("template_id")
+  content    String
+  variables  Json     @default("[]")
+  language   String   @default("ar")
+  status     String   @default("draft")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([storeId, channel])
+  @@map("message_templates")
+}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Connect WhatsApp Business</title>
+  <script src="https://connect.facebook.net/en_US/sdk.js"></script>
+</head>
+<body>
+  <h1>Connect Your WhatsApp Business Account</h1>
+  <button id="connect-btn">Connect WhatsApp</button>
+  
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const storeId = urlParams.get('storeId');
+    
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId: '2083972588839965',
+        cookie: true,
+        xfbml: true,
+        version: 'v18.0'
+      });
+    };
+
+    document.getElementById('connect-btn').addEventListener('click', function() {
+      FB.login(function(response) {
+        if (response.authResponse) {
+          const accessToken = response.authResponse.accessToken;
+          
+          // Send token to backend
+          fetch('/whatsapp/save-credentials', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              storeId: storeId,
+              accessToken: accessToken
+            })
+          }).then(res => res.json())
+            .then(data => {
+              alert('WhatsApp Connected Successfully!');
+              window.close();
+            });
+        } else {
+          alert('Login cancelled');
+        }
+      }, {
+        scope: 'whatsapp_business_messaging,whatsapp_business_management',
+        auth_type: 'rerequest'
+      });
+    });
+  </script>
+</body>
+</html>
