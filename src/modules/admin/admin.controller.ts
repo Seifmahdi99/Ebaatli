@@ -208,6 +208,39 @@ async verifyAdminKey(@Body() body: { key: string }) {
     };
   }
 
+@Get('store/:storeId/customers')
+async getCustomers(@Param('storeId') storeId: string) {
+  const customers = await this.prisma.customer.findMany({
+    where: { storeId },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  return customers;
+}
+
+@Get('store/:storeId/orders')
+async getOrders(@Param('storeId') storeId: string) {
+  const orders = await this.prisma.order.findMany({
+    where: { storeId },
+    include: {
+      customer: true,
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  return orders;
+}
+
+@Get('store/:storeId/messages')
+async getMessages(@Param('storeId') storeId: string) {
+  const messages = await this.prisma.messageJob.findMany({
+    where: { storeId },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  });
+  return messages;
+}
+
   /**
    * Get platform stats
    */

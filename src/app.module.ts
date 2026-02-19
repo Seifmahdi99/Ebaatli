@@ -12,6 +12,8 @@ import { TemplateModule } from './modules/template/template.module';
 import { FlowModule } from './modules/flow/flow.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { WhatsAppOAuthModule } from './modules/whatsapp-oauth/whatsapp-oauth.module';
+import { FlowManagementModule } from './modules/flow-management/flow-management.module';
+import { TemplateManagementModule } from './modules/template-management/template-management.module';
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
@@ -25,6 +27,8 @@ import { WhatsAppOAuthModule } from './modules/whatsapp-oauth/whatsapp-oauth.mod
     FlowModule,
     AdminModule,
     WhatsAppOAuthModule,
+    FlowManagementModule,
+    TemplateManagementModule,
   ],
   controllers: [AppController],
   providers: [AppService],

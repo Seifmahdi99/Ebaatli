@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ebaatli Merchant</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="styles/main.css" />
+
+    <style>
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: var(--bg);
+        }
+
+        .loading-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(20px);
+        }
+
+        .logo {
+            width: 60px;
+            height: 60px;
+            background: var(--gradient);
+            border-radius: 16px;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
+        }
+
+        .error {
+            color: #f87171;
+            margin-top: 16px;
+            font-size: 0.9rem;
+        }
+
+        .spinner {
+            margin: 18px auto 0;
+            width: 24px;
+            height: 24px;
+            border: 3px solid rgba(255, 255, 255, 0.2);
+            border-top: 3px solid #fff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="loading-card">
+        <div class="logo">⚡</div>
+        <h2>Opening your store...</h2>
+        <p style="color:var(--text-muted)">Connecting to Ebaatli</p>
+        <div class="spinner"></div>
+        <div class="error" id="errorMsg"></div>
+    </div>
+
+    <script>
+        const params = new URLSearchParams(window.location.search);
+        const storeId = params.get('storeId');
+
+        if (!storeId) {
+            document.getElementById('errorMsg').innerText =
+                "Invalid access. This panel must be opened from your Shopify store.";
+        } else {
+            localStorage.setItem('storeId', storeId);
+
+            // small delay for UX
+            setTimeout(() => {
+                window.location.href = 'dashboard.html';
+            }, 600);
+        }
+    </script>
+</body>
+
+</html>

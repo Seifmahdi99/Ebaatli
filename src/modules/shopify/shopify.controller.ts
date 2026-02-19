@@ -18,25 +18,35 @@ export class ShopifyController {
     return res.redirect(authUrl);
   }
 
-  @Get('callback')
-  async callback(
-    @Query('shop') shop: string,
-    @Query('code') code: string,
-    @Query('scope') scope: string,
-    @Res() res: Response,
-  ) {
-    try {
-      this.logger.log(`OAuth callback from: ${shop}`);
-      const accessToken = await this.shopifyService.exchangeToken(shop, code);
-      const store = await this.shopifyService.saveStore(shop, accessToken, scope);
-      await this.shopifyService.registerWebhooks(shop, accessToken);
-      this.logger.log(`✅ Store installed successfully: ${shop}`);
-      return res.redirect(`/shopify/success?shop=${shop}&store_id=${store.id}`);
-    } catch (error: any) {
-      this.logger.error('❌ OAuth callback failed:', error.message);
-      return res.status(500).json({ error: 'Installation failed', message: error.message });
-    }
+@Get('callback')
+async callback(@Query() query: any, @Res() res: any) {
+  const { code, shop, state } = query;
+
+  if (!code || !shop) {
+    return res.status(400).json({ error: 'Missing code or shop' });
   }
+
+  try {
+    // Exchange code for access token
+    const accessToken = await this.shopifyService.exchangeToken(shop, code);
+    
+    // Save store and get store info
+    const store = await this.shopifyService.saveStore(shop, accessToken, query.scope || '');
+    
+    // Register webhooks
+    await this.shopifyService.registerWebhooks(shop, accessToken);
+    
+    this.logger.log(`✅ App installed successfully for: ${shop}`);
+    
+    // Redirect to merchant dashboard with storeId
+    const dashboardUrl = `/merchant/index.html?storeId=${store.id}`;
+    return res.redirect(dashboardUrl);
+  } catch (error) {
+    this.logger.error('OAuth callback failed:', error);
+    return res.status(500).json({ error: 'Installation failed' });
+  }
+}
+
 
   @Get('success')
   success(@Query('shop') shop: string, @Query('store_id') storeId: string) {
