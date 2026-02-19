@@ -4,8 +4,7 @@ async function loadOverview() {
     if (!storeId) return;
 
     try {
-        const store = await api.get(`/admin/store/${storeId}`);
-
+        const store = await api.get(`/merchant/store/${storeId}`);
         document.getElementById('pageContent').innerHTML = `
             <div class="card-grid">
 

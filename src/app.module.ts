@@ -1,7 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { join } from 'path';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+
 import { PrismaModule } from './modules/prisma/prisma.module';
 import { CryptoModule } from './modules/crypto/crypto.module';
 import { SmsModule } from './modules/sms/sms.module';
@@ -11,12 +15,24 @@ import { WebhookModule } from './modules/webhook/webhook.module';
 import { TemplateModule } from './modules/template/template.module';
 import { FlowModule } from './modules/flow/flow.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { MerchantModule } from './modules/merchant/merchant.module';
 import { WhatsAppOAuthModule } from './modules/whatsapp-oauth/whatsapp-oauth.module';
-import { FlowManagementModule } from './modules/flow-management/flow-management.module';
-import { TemplateManagementModule } from './modules/template-management/template-management.module';
+
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+
+    // 🔥 Serve Admin Panel
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public', 'admin'),
+      serveRoot: '/admin',
+    }),
+
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public', 'merchant'),
+      serveRoot: '/merchant',
+    }),
+
     PrismaModule,
     CryptoModule,
     SmsModule,
@@ -26,11 +42,10 @@ import { TemplateManagementModule } from './modules/template-management/template
     TemplateModule,
     FlowModule,
     AdminModule,
+    MerchantModule,
     WhatsAppOAuthModule,
-    FlowManagementModule,
-    TemplateManagementModule,
   ],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
