@@ -1,8 +1,22 @@
-import { Controller, Post, Body, Get, Param, Patch } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-
+import { Controller, Get, Post, Patch, Param, Body, UnauthorizedException } from '@nestjs/common';
 @Controller('admin')
 export class AdminController {
+@Post('auth/verify')
+async verifyAdminKey(@Body() body: { key: string }) {
+  // Simple hardcoded key for now - you can improve this later
+  const validKey = process.env.ADMIN_API_KEY || 'admin-secret-key-12345';
+  
+  if (body.key === validKey) {
+    return { valid: true };
+  }
+  
+  throw new UnauthorizedException('Invalid admin key');
+}
+
+
+
+
   constructor(private readonly prisma: PrismaService) {}
 
   /**

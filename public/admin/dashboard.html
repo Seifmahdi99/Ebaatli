@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ebaatli Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="styles/main.css" />
+</head>
+
+<body>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <div class="sidebar-logo">⚡</div>
+            <div>
+                <div class="sidebar-title">Ebaatli</div>
+                <div class="sidebar-subtitle">Admin Panel</div>
+            </div>
+        </div>
+
+        <nav class="nav-section">
+            <div class="nav-label">Main</div>
+            <a class="nav-item active" id="nav-overview" data-page="overview">
+                <span class="nav-icon">📊</span> Overview
+            </a>
+            <a class="nav-item" id="nav-stores" data-page="stores">
+                <span class="nav-icon">🏪</span> Stores
+            </a>
+        </nav>
+
+        <nav class="nav-section">
+            <div class="nav-label">Management</div>
+            <a class="nav-item" id="nav-whatsapp" data-page="whatsapp">
+                <span class="nav-icon">💬</span> WhatsApp
+            </a>
+            <a class="nav-item" id="nav-activity" data-page="activity">
+                <span class="nav-icon">⚡</span> Activity
+            </a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <a class="nav-item" id="logoutBtn">
+                <span class="nav-icon">🚪</span> Logout
+            </a>
+        </div>
+    </aside>
+
+    <!-- Main content -->
+    <main class="main">
+        <header class="topbar">
+            <h2 id="pageTitle">Overview</h2>
+            <div class="flex items-center gap-3">
+                <span style="font-size:0.8rem;color:var(--text-muted)" id="lastUpdated"></span>
+                <button class="btn btn-ghost btn-sm" id="refreshBtn">↺ Refresh</button>
+            </div>
+        </header>
+        <div class="page-content" id="pageContent">
+            <div class="loading">Loading…</div>
+        </div>
+    </main>
+
+    <!-- Templates -->
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/pages/overview.js"></script>
+    <script src="js/pages/stores.js"></script>
+    <script src="js/pages/store-detail.js"></script>
+    <script src="js/pages/whatsapp.js"></script>
+    <script src="js/pages/activity.js"></script>
+</body>
+
+</html>
