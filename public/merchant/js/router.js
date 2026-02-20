@@ -7,19 +7,19 @@ const routes = {
     },
     usage: {
         title: "Usage",
-        load: () => loadUsage?.()
+        load: () => renderPlaceholder("Usage page coming soon")
     },
     whatsapp: {
         title: "WhatsApp",
-        load: () => loadWhatsapp?.()
+        load: () => loadWhatsApp?.()
     },
     messages: {
         title: "Messages",
-        load: () => loadMessages?.()
+        load: () => renderPlaceholder("Message history coming soon")
     },
     settings: {
         title: "Settings",
-        load: () => loadSettings?.()
+        load: () => renderPlaceholder("Settings page coming soon")
     }
 };
 
@@ -46,18 +46,21 @@ function navigate(page) {
         `<div class="loading">Loading…</div>`;
 
     // load page
-    setTimeout(() => {
-        try {
-            route.load();
-        } catch (err) {
-            document.getElementById("pageContent").innerHTML =
-                `<div style="color:#f87171">Page failed to load</div>`;
-        }
-    }, 50);
+    setTimeout(route.load, 50);
 }
 
 // default page
 navigate("overview");
+
+
+// fallback UI
+function renderPlaceholder(text) {
+    document.getElementById("pageContent").innerHTML = `
+        <div style="padding:40px;text-align:center;color:var(--text-muted)">
+            <h3>${text}</h3>
+        </div>
+    `;
+}
 
 // refresh button
 document.getElementById("refreshBtn")?.addEventListener("click", () => {
