@@ -1,5 +1,5 @@
 import { PrismaService } from '../prisma/prisma.service';
-import { Controller, Get, Post, Patch, Param, Body, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Param, Body, UnauthorizedException, BadRequestException } from '@nestjs/common';
 @Controller('admin')
 export class AdminController {
 @Post('auth/verify')
@@ -133,33 +133,58 @@ async verifyAdminKey(@Body() body: { key: string }) {
    * Set WhatsApp credentials for a store
    */
   @Patch('store/:storeId/whatsapp-credentials')
-  async setWhatsAppCredentials(
+  async updateWhatsAppCredentials(
     @Param('storeId') storeId: string,
-    @Body() body: {
-      whatsappAccessToken: string;
-      whatsappPhoneNumberId: string;
-      whatsappBusinessAccountId: string;
-      whatsappEnabled?: boolean;
-    }
+    @Body() body: any,
   ) {
-    const store = await this.prisma.store.update({
+    const { whatsappAccessToken, whatsappPhoneNumberId, whatsappBusinessAccountId } = body;
+
+    if (whatsappAccessToken && !whatsappAccessToken.startsWith('EAA')) {
+      throw new BadRequestException('Invalid access token format. Token should start with "EAA"');
+    }
+
+    if (whatsappPhoneNumberId && !/^\d+$/.test(whatsappPhoneNumberId)) {
+      throw new BadRequestException('Invalid Phone Number ID. Should contain only numbers');
+    }
+
+    if (whatsappBusinessAccountId && !/^\d+$/.test(whatsappBusinessAccountId)) {
+      throw new BadRequestException('Invalid Business Account ID. Should contain only numbers');
+    }
+
+    if (whatsappAccessToken && whatsappPhoneNumberId) {
+      try {
+        const testResponse = await fetch(
+          `https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}?access_token=${whatsappAccessToken}`
+        );
+
+        if (!testResponse.ok) {
+          const errorData = await testResponse.json() as { error?: { message?: string } };
+          throw new BadRequestException(
+            `WhatsApp API validation failed: ${errorData.error?.message || 'Invalid credentials'}`
+          );
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException('Failed to validate WhatsApp credentials with Meta API');
+      }
+    }
+
+    const updatedStore = await this.prisma.store.update({
       where: { id: storeId },
       data: {
-        whatsappAccessToken: body.whatsappAccessToken,
-        whatsappPhoneNumberId: body.whatsappPhoneNumberId,
-        whatsappBusinessAccountId: body.whatsappBusinessAccountId,
-        whatsappEnabled: body.whatsappEnabled !== false,
+        whatsappAccessToken,
+        whatsappPhoneNumberId,
+        whatsappBusinessAccountId,
+        whatsappEnabled: body.whatsappEnabled ?? true,
       },
     });
 
     return {
-      message: `WhatsApp credentials set for ${store.name}`,
-      store: {
-        id: store.id,
-        name: store.name,
-        whatsappEnabled: store.whatsappEnabled,
-        whatsappPhoneNumberId: store.whatsappPhoneNumberId,
-      },
+      success: true,
+      message: 'WhatsApp credentials validated and saved successfully',
+      store: updatedStore,
     };
   }
 
