@@ -9,7 +9,7 @@ export class WebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly flowService: FlowService,
-  ) {}
+  ) { }
 
   async handleOrderCreated(shop: string, payload: any) {
     this.logger.log(`Processing order created for shop: ${shop}`);
@@ -60,6 +60,7 @@ export class WebhookService {
         type: 'order_created',
         storeId: store.id,
         data: {
+          customerId: customer.id,
           customer_name: customerName,
           order_number: String(orderNumber),
           total_amount: String(totalPrice),

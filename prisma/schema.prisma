@@ -197,6 +197,8 @@ model MessageJob {
   attempts    Int       @default(0)
   lastError   String?   @map("last_error")
   createdAt   DateTime  @default(now()) @map("created_at")
+  sentAt DateTime? @map("sent_at")
+  content     String? @db.Text
 
   store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
   order    Order?    @relation(fields: [orderId], references: [id], onDelete: Cascade)

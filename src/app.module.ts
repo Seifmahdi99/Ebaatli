@@ -17,10 +17,12 @@ import { FlowModule } from './modules/flow/flow.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MerchantModule } from './modules/merchant/merchant.module';
 import { WhatsAppOAuthModule } from './modules/whatsapp-oauth/whatsapp-oauth.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
 
     // 🔥 Serve Admin Panel
     ServeStaticModule.forRoot({

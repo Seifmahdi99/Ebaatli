@@ -1,29 +1,31 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { TemplateService } from '../template/template.service';
 import { SmsService } from '../sms/sms.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
-import { TemplateService } from '../template/template.service';
+import { Cron, CronExpression } from '@nestjs/schedule';
 
-interface FlowTrigger {
+export interface FlowTrigger {
   type: 'order_created' | 'order_cancelled' | 'order_fulfilled' | 'cart_created' | 'cart_abandoned';
   storeId: string;
   data: any;
 }
 
-interface CreateFlowDto {
+export interface CreateFlowDto {
   storeId: string;
   name: string;
   trigger: string;
   steps: FlowStepDto[];
 }
 
-interface FlowStepDto {
+export interface FlowStepDto {
   stepOrder: number;
   actionType: 'send_sms' | 'send_whatsapp' | 'send_email' | 'wait' | 'condition';
   config: {
     templateId?: string;
     channel?: string;
     delay?: number; // in minutes
+    message?: string;
     condition?: string;
   };
 }
@@ -34,10 +36,10 @@ export class FlowService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly smsService: SmsService,
-    private readonly whatsappService: WhatsAppService,
     private readonly templateService: TemplateService,
-  ) {}
+    private readonly smsService: SmsService,
+    private readonly whatsAppService: WhatsAppService,
+  ) { }
 
   /**
    * Create a new automation flow
@@ -67,7 +69,7 @@ export class FlowService {
   }
 
   /**
-   * Get all flows for a store
+   * Get all active flows for a store
    */
   async getStoreFlows(storeId: string, trigger?: string) {
     return await this.prisma.automationFlow.findMany({
@@ -100,8 +102,7 @@ export class FlowService {
     for (const flow of flows) {
       try {
         await this.executeFlow(flow, trigger.data);
-        
-        // Update flow stats
+
         await this.prisma.automationFlow.update({
           where: { id: flow.id },
           data: {
@@ -122,40 +123,35 @@ export class FlowService {
     this.logger.log(`▶️ Executing flow: ${flow.name}`);
 
     for (const step of flow.automationSteps) {
-      try {
-        await this.executeStep(step, data, flow.storeId);
-      } catch (error: any) {
-        this.logger.error(`❌ Step ${step.stepOrder} failed: ${error.message}`);
-        throw error;
-      }
+      await this.executeStep(step, data, flow.storeId);
     }
 
-    this.logger.log(`✅ Flow completed: ${flow.name}`);
+    this.logger.log(`✅ Flow scheduled: ${flow.name}`);
   }
 
   /**
-   * Execute a single step
+   * Execute a single step (SCHEDULE ONLY)
    */
   private async executeStep(step: any, data: any, storeId: string) {
     const config = step.config as any;
 
+    if (!data.customerId) {
+      this.logger.warn('No customerId provided - skipping step');
+      return;
+    }
+
     switch (step.actionType) {
       case 'send_sms':
-        await this.executeSendSms(storeId, config, data);
-        break;
-
       case 'send_whatsapp':
-        await this.executeSendWhatsApp(storeId, config, data);
+        await this.scheduleMessage(storeId, step.actionType, config, data);
         break;
 
       case 'wait':
-        this.logger.log(`⏳ Wait step: ${config.delay} minutes (scheduled)`);
-        // In production, this would schedule a job for later
+        this.logger.log(`⏳ Wait step defined (${config.delay} minutes)`);
         break;
 
       case 'condition':
         this.logger.log(`🔍 Condition step: ${config.condition}`);
-        // Evaluate condition and skip/continue based on result
         break;
 
       default:
@@ -164,45 +160,19 @@ export class FlowService {
   }
 
   /**
-   * Execute send SMS step
+   * Create MessageJob instead of sending immediately
    */
-  private async executeSendSms(storeId: string, config: any, data: any) {
-    if (!data.customerPhone) {
-      this.logger.warn('No customer phone - skipping SMS');
-      return;
-    }
+  private async scheduleMessage(
+    storeId: string,
+    actionType: string,
+    config: any,
+    data: any,
+  ) {
+    const delayMinutes = config.delay || 0;
 
-    let message = config.message || '';
-
-    // If template is specified, use it
-    if (config.templateId) {
-      const template = await this.templateService.getTemplate(config.templateId);
-      if (template) {
-        message = this.templateService.replaceVariables(template.content, data);
-      }
-    }
-
-    if (!message) {
-      this.logger.warn('No message content - skipping SMS');
-      return;
-    }
-
-    await this.smsService.sendSms(storeId, {
-      to: data.customerPhone,
-      message,
-    });
-
-    this.logger.log(`📱 SMS sent via flow`);
-  }
-
-  /**
-   * Execute send WhatsApp step
-   */
-  private async executeSendWhatsApp(storeId: string, config: any, data: any) {
-    if (!data.customerPhone) {
-      this.logger.warn('No customer phone - skipping WhatsApp');
-      return;
-    }
+    const scheduledAt = new Date(
+      Date.now() + delayMinutes * 60 * 1000
+    );
 
     let message = config.message || '';
 
@@ -214,63 +184,129 @@ export class FlowService {
     }
 
     if (!message) {
-      this.logger.warn('No message content - skipping WhatsApp');
+      this.logger.warn('No message content - skipping scheduling');
       return;
     }
 
-    await this.whatsappService.sendMessage(storeId, {
-      to: data.customerPhone,
-      message,
+    await this.prisma.messageJob.create({
+      data: {
+        storeId,
+        customerId: data.customerId,
+        channel: actionType === 'send_sms' ? 'sms' : 'whatsapp',
+        content: message,
+        scheduledAt,
+        status: 'pending',
+      },
     });
 
-    this.logger.log(`💬 WhatsApp sent via flow`);
+    this.logger.log(
+      `📌 MessageJob created (${actionType}) - scheduled in ${delayMinutes} min`
+    );
   }
 
   /**
-   * Seed default flows for a store
+   * CRON JOB: Process pending messages
+   * Runs every minute
+   */
+  @Cron(CronExpression.EVERY_MINUTE)
+  async processPendingJobs() {
+    this.logger.log('⏰ Checking for pending message jobs...');
+
+    const pendingJobs = await this.prisma.messageJob.findMany({
+      where: {
+        status: 'pending',
+        scheduledAt: {
+          lte: new Date(),
+        },
+      },
+      include: {
+        customer: true,
+      },
+      take: 50, // Process batch of 50
+    });
+
+    if (pendingJobs.length === 0) {
+      return;
+    }
+
+    this.logger.log(`🚀 Processing ${pendingJobs.length} pending jobs...`);
+
+    for (const job of pendingJobs) {
+      try {
+        if (!job.customer || !job.customer.phone) {
+          throw new Error('Customer phone missing');
+        }
+
+        const phone = job.customer.phone;
+        const content = job.content || '';
+
+        if (job.channel === 'sms') {
+          await this.smsService.sendSms(job.storeId, { to: phone, message: content });
+        } else if (job.channel === 'whatsapp') {
+          await this.whatsAppService.sendMessage(job.storeId, { to: phone, message: content });
+        }
+
+        await this.prisma.messageJob.update({
+          where: { id: job.id },
+          data: { status: 'processed', sentAt: new Date() },
+        });
+
+        this.logger.log(`✅ Job ${job.id} processed successfully`);
+
+      } catch (error: any) {
+        this.logger.error(`❌ Failed to process job ${job.id}: ${error.message}`);
+
+        await this.prisma.messageJob.update({
+          where: { id: job.id },
+          data: {
+            status: 'failed',
+            lastError: error.message,
+            attempts: { increment: 1 }
+          },
+        });
+      }
+    }
+  }
+
+  /**
+   * Seed default order confirmation flow
    */
   async seedDefaultFlows(storeId: string) {
     const templates = await this.templateService.getStoreTemplates(storeId);
     const smsTemplate = templates.find(t => t.channel === 'sms');
     const whatsappTemplate = templates.find(t => t.channel === 'whatsapp');
 
-    const defaultFlows: CreateFlowDto[] = [
-      {
-        storeId,
-        name: 'Order Confirmation Messages',
-        trigger: 'order_created',
-        steps: [
-          {
-            stepOrder: 1,
-            actionType: 'send_sms',
-            config: {
-              templateId: smsTemplate?.id,
-            },
+    const defaultFlow: CreateFlowDto = {
+      storeId,
+      name: 'Order Confirmation Messages',
+      trigger: 'order_created',
+      steps: [
+        {
+          stepOrder: 1,
+          actionType: 'send_sms',
+          config: {
+            templateId: smsTemplate?.id,
+            delay: 0,
           },
-          {
-            stepOrder: 2,
-            actionType: 'send_whatsapp',
-            config: {
-              templateId: whatsappTemplate?.id,
-            },
+        },
+        {
+          stepOrder: 2,
+          actionType: 'send_whatsapp',
+          config: {
+            templateId: whatsappTemplate?.id,
+            delay: 0,
           },
-        ],
-      },
-    ];
+        },
+      ],
+    };
 
-    const created: any[] = [];
-    for (const flowDto of defaultFlows) {
-      const existing = await this.prisma.automationFlow.findFirst({
-        where: { storeId, name: flowDto.name },
-      });
+    const existing = await this.prisma.automationFlow.findFirst({
+      where: { storeId, name: defaultFlow.name },
+    });
 
-      if (!existing) {
-        const flow = await this.createFlow(flowDto);
-        created.push(flow);
-      }
+    if (!existing) {
+      await this.createFlow(defaultFlow);
+      this.logger.log(`✅ Default flow seeded`);
     }
-
-    this.logger.log(`✅ Seeded ${created.length} default flow(s)`);
-    return created;
   }
 }
