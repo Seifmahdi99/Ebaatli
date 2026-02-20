@@ -54,5 +54,9 @@ const api = {
             method: 'PATCH',
             body: JSON.stringify(body)
         });
+    },
+
+    delete(path) {
+        return this.request(path, { method: 'DELETE' });
     }
 };

@@ -1,9 +1,14 @@
-import { Controller, Get, Param } from '@nestjs/common';
+import { Controller, Get, Param, Query } from '@nestjs/common';
 import { MerchantService } from './merchant.service';
 
 @Controller('merchant')
 export class MerchantController {
     constructor(private readonly merchantService: MerchantService) { }
+
+    @Get('by-shop')
+    getStoreByShop(@Query('shop') shop: string) {
+        return this.merchantService.getStoreByShop(shop);
+    }
 
     @Get('store/:storeId')
     getStore(@Param('storeId') storeId: string) {

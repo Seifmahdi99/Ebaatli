@@ -58,6 +58,7 @@ model Store {
   subscriptions      Subscription[]
   customers          Customer[]
   orders             Order[]
+  carts              Cart[]
   automationFlows    AutomationFlow[]
   events             Event[]
   messageJobs        MessageJob[]
@@ -99,6 +100,7 @@ model Customer {
   updatedAt           DateTime @default(now()) @updatedAt @map("updated_at")
   store       Store        @relation(fields: [storeId], references: [id], onDelete: Cascade)
   orders      Order[]
+  carts       Cart[]
   messageJobs MessageJob[]
 
   @@unique([storeId, platformCustomerId])
@@ -252,4 +254,30 @@ model WhatsAppConnection {
 
   @@index([storeId])
   @@map("whatsapp_connections")
+}
+
+model Cart {
+  id           String    @id @default(uuid())
+  storeId      String    @map("store_id")
+  cartToken    String    @map("cart_token")
+  email        String?
+  phone        String?
+  customerId   String?   @map("customer_id")
+  totalAmount  Float?    @map("total_amount")
+  currency     String?
+  converted    Boolean   @default(false)
+  convertedAt  DateTime? @map("converted_at")
+  recoverySent Boolean   @default(false) @map("recovery_sent")
+  recoveryAt   DateTime? @map("recovery_at")
+  rawPayload   Json      @map("raw_payload")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  store    Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  customer Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  @@unique([storeId, cartToken])
+  @@index([storeId])
+  @@index([converted, recoverySent, createdAt])
+  @@map("carts")
 }

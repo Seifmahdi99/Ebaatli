@@ -55,6 +55,22 @@ export class WebhookService {
         },
       });
 
+      // Mark matching abandoned cart as converted (prevent recovery message)
+      const customerEmail = payload.customer?.email || payload.email;
+      if (customerEmail || customerPhone) {
+        await (this.prisma as any).cart.updateMany({
+          where: {
+            storeId: store.id,
+            converted: false,
+            OR: [
+              ...(customerEmail ? [{ email: customerEmail }] : []),
+              ...(customerPhone ? [{ phone: customerPhone }] : []),
+            ],
+          },
+          data: { converted: true, convertedAt: new Date() },
+        });
+      }
+
       // Execute automation flows (flows handle all messaging)
       await this.flowService.executeTrigger({
         type: 'order_created',
@@ -77,12 +93,69 @@ export class WebhookService {
     }
   }
 
-  async handleOrderUpdated(shop: string, payload: any) {
+  async handleOrderUpdated(shop: string, _payload: any) {
     this.logger.log(`Processing order updated for shop: ${shop}`);
   }
 
   async handleCheckoutCreated(shop: string, payload: any) {
     this.logger.log(`Processing checkout created for shop: ${shop}`);
+
+    try {
+      const store = await this.prisma.store.findFirst({
+        where: { platform: 'shopify', platformStoreId: shop, status: 'active' },
+      });
+
+      if (!store) {
+        this.logger.warn(`Store not found for checkout: ${shop}`);
+        return;
+      }
+
+      const cartToken = payload.token;
+      if (!cartToken) {
+        this.logger.warn('Checkout has no token — skipping');
+        return;
+      }
+
+      const email = payload.email || payload.customer?.email || null;
+      const phone =
+        payload.phone ||
+        payload.customer?.phone ||
+        payload.billing_address?.phone ||
+        payload.shipping_address?.phone ||
+        null;
+
+      // Upsert customer if we have enough info
+      let customerId: string | null = null;
+      if (phone && payload.customer?.id) {
+        const customer = await this.upsertCustomer(store.id, payload);
+        customerId = customer.id;
+      }
+
+      await (this.prisma as any).cart.upsert({
+        where: { storeId_cartToken: { storeId: store.id, cartToken } },
+        create: {
+          storeId: store.id,
+          cartToken,
+          email,
+          phone,
+          customerId,
+          totalAmount: parseFloat(payload.total_price || '0'),
+          currency: payload.currency || store.currency,
+          rawPayload: payload,
+        },
+        update: {
+          email,
+          phone,
+          customerId,
+          totalAmount: parseFloat(payload.total_price || '0'),
+          rawPayload: payload,
+        },
+      });
+
+      this.logger.log(`✅ Cart saved for shop ${shop} (token: ${cartToken})`);
+    } catch (error: any) {
+      this.logger.error(`❌ Error handling checkout created: ${error.message}`);
+    }
   }
 
   async handleAppUninstalled(shop: string) {

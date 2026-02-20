@@ -13,6 +13,10 @@ const routes = {
         title: "WhatsApp",
         load: () => loadWhatsapp?.()
     },
+    flows: {
+        title: "Flows",
+        load: () => loadFlows?.()
+    },
     messages: {
         title: "Messages",
         load: () => loadMessages?.()

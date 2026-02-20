@@ -78,6 +78,37 @@ export class MerchantService {
         });
     }
 
+    async getStoreByShop(shop: string) {
+        const store = await this.prisma.store.findFirst({
+            where: { platformStoreId: shop, status: 'active' },
+            include: {
+                _count: {
+                    select: {
+                        customers: true,
+                        orders: true,
+                        messageJobs: true,
+                    },
+                },
+            },
+        });
+
+        if (!store) throw new NotFoundException('Store not found');
+
+        return {
+            storeId: store.id,
+            name: store.name,
+            platform: store.platform,
+            platformStoreId: store.platformStoreId,
+            status: store.status,
+            smsQuotaAllocated: store.smsQuotaAllocated,
+            smsQuotaUsed: store.smsQuotaUsed,
+            whatsappQuotaAllocated: store.whatsappQuotaAllocated,
+            whatsappQuotaUsed: store.whatsappQuotaUsed,
+            whatsappEnabled: store.whatsappEnabled,
+            counts: store._count,
+        };
+    }
+
     async getWhatsAppStatus(storeId: string) {
         const connection = await this.prisma.whatsAppConnection.findUnique({
             where: { storeId },

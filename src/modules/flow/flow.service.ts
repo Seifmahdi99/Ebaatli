@@ -269,6 +269,67 @@ export class FlowService {
   }
 
   /**
+   * CRON JOB: Check for abandoned carts
+   * Runs every 5 minutes — finds carts older than 60 min, not converted, not yet messaged
+   */
+  @Cron(CronExpression.EVERY_5_MINUTES)
+  async checkAbandonedCarts() {
+    this.logger.log('🛒 Checking for abandoned carts...');
+
+    const cutoff = new Date(Date.now() - 60 * 60 * 1000); // 1 hour ago
+
+    const abandonedCarts = await (this.prisma as any).cart.findMany({
+      where: {
+        converted: false,
+        recoverySent: false,
+        createdAt: { lte: cutoff },
+        phone: { not: null },
+      },
+      include: { customer: true },
+    });
+
+    if (abandonedCarts.length === 0) {
+      return;
+    }
+
+    this.logger.log(`🚀 Found ${abandonedCarts.length} abandoned cart(s)`);
+
+    for (const cart of abandonedCarts) {
+      try {
+        const triggerData: any = {
+          customerPhone: cart.phone,
+          total_amount: String(cart.totalAmount ?? '0'),
+          currency: cart.currency ?? '',
+        };
+
+        if (cart.customerId) {
+          triggerData.customerId = cart.customerId;
+        } else if (cart.customer) {
+          triggerData.customerId = cart.customer.id;
+          triggerData.customer_name = `${cart.customer.firstName ?? ''} ${cart.customer.lastName ?? ''}`.trim();
+        }
+
+        if (triggerData.customerId) {
+          await this.executeTrigger({
+            type: 'cart_abandoned',
+            storeId: cart.storeId,
+            data: triggerData,
+          });
+        } else {
+          this.logger.warn(`Abandoned cart ${cart.id} has no linked customer — skipping flow`);
+        }
+
+        await (this.prisma as any).cart.update({
+          where: { id: cart.id },
+          data: { recoverySent: true, recoveryAt: new Date() },
+        });
+      } catch (error: any) {
+        this.logger.error(`❌ Failed to process abandoned cart ${cart.id}: ${error.message}`);
+      }
+    }
+  }
+
+  /**
    * Seed default order confirmation flow
    */
   async seedDefaultFlows(storeId: string) {

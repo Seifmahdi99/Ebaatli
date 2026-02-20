@@ -7,7 +7,16 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   
   app.enableCors();
-  
+
+  // Allow Shopify Admin to embed this app in an iframe
+  app.use((_req: any, res: any, next: any) => {
+    res.setHeader(
+      'Content-Security-Policy',
+      'frame-ancestors https://admin.shopify.com https://*.myshopify.com;',
+    );
+    next();
+  });
+
   // Serve static files (admin panel)
   app.useStaticAssets(join(__dirname, '..', 'public'), {
     prefix: '/',
