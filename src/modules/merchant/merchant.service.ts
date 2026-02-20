@@ -32,6 +32,8 @@ export class MerchantService {
             whatsappQuotaAllocated: store.whatsappQuotaAllocated,
             whatsappQuotaUsed: store.whatsappQuotaUsed,
             whatsappEnabled: store.whatsappEnabled,
+            whatsappPhoneNumberId: store.whatsappPhoneNumberId,
+            whatsappBusinessAccountId: store.whatsappBusinessAccountId,
             counts: store._count,
             subscription: store.subscriptions[0] || null,
         };

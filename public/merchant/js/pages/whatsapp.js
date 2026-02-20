@@ -1,10 +1,11 @@
-async function loadWhatsApp() {
+async function loadWhatsapp() {
     const storeId = localStorage.getItem('storeId');
+    if (!storeId) return;
 
     try {
-        const store = await api.get(`/admin/store/${storeId}`);
+        const store = await api.get(`/merchant/store/${storeId}`);
 
-        if (store.whatsappEnabled && store.whatsappAccessToken) {
+        if (store.whatsappEnabled) {
             document.getElementById('pageContent').innerHTML = `
         <div class="card" style="max-width:700px;margin:0 auto">
           <h2 style="color:var(--success);margin-bottom:25px">✅ WhatsApp Connected</h2>
@@ -68,7 +69,8 @@ async function loadWhatsApp() {
             });
         }
     } catch (err) {
-        document.getElementById('pageContent').innerHTML = `<div class="alert alert-error">Failed: ${err.message}</div>`;
+        document.getElementById('pageContent').innerHTML =
+            `<div class="alert alert-error">Failed to load WhatsApp status: ${err.message}</div>`;
     }
 }
 
@@ -80,70 +82,55 @@ async function saveWhatsAppCredentials() {
     const wabaId = document.getElementById('wabaId').value;
     const accessToken = document.getElementById('accessToken').value;
 
-    // Frontend validation
     if (!phoneNumberId || !wabaId || !accessToken) {
         alertsEl.innerHTML = '<div class="alert alert-error">❌ All fields are required</div>';
         return;
     }
 
-    // Validate Phone Number ID format
     if (!/^\d+$/.test(phoneNumberId)) {
         alertsEl.innerHTML = '<div class="alert alert-error">❌ Phone Number ID should contain only numbers</div>';
         return;
     }
 
-    // Validate WABA ID format
     if (!/^\d+$/.test(wabaId)) {
         alertsEl.innerHTML = '<div class="alert alert-error">❌ Business Account ID should contain only numbers</div>';
         return;
     }
 
-    // Validate token format
     if (!accessToken.startsWith('EAA')) {
         alertsEl.innerHTML = '<div class="alert alert-error">❌ Access Token should start with "EAA"</div>';
         return;
     }
 
-    const credentials = {
-        whatsappAccessToken: accessToken,
-        whatsappPhoneNumberId: phoneNumberId,
-        whatsappBusinessAccountId: wabaId,
-        whatsappEnabled: true
-    };
-
     try {
-        const btn = document.querySelector('.btn-primary');
+        const btn = document.querySelector('#whatsappForm .btn-primary');
         btn.textContent = '⏳ Validating credentials...';
         btn.disabled = true;
 
-        const response = await api.patch(`/admin/store/${storeId}/whatsapp-credentials`, credentials);
+        await api.patch(`/admin/store/${storeId}/whatsapp-credentials`, {
+            whatsappAccessToken: accessToken,
+            whatsappPhoneNumberId: phoneNumberId,
+            whatsappBusinessAccountId: wabaId,
+            whatsappEnabled: true,
+        });
 
         alertsEl.innerHTML = '<div class="alert alert-success">✅ Credentials validated successfully! Connecting...</div>';
-        setTimeout(() => loadWhatsApp(), 2000);
+        setTimeout(() => loadWhatsapp(), 2000);
     } catch (err) {
-        console.error('Failed to save credentials:', err);
-
-        // Show detailed error message
-        let errorMessage = 'Failed to connect WhatsApp';
-        if (err.message) {
-            errorMessage = err.message;
-        }
+        const btn = document.querySelector('#whatsappForm .btn-primary');
+        btn.textContent = '🔗 Connect WhatsApp';
+        btn.disabled = false;
 
         alertsEl.innerHTML = `
       <div class="alert alert-error">
         <strong>❌ Connection Failed</strong><br>
-        ${errorMessage}
+        ${err.message}
         <br><br>
         <small>Please verify your credentials in Meta Business Settings and try again.</small>
       </div>
     `;
-
-        const btn = document.querySelector('.btn-primary');
-        btn.textContent = '🔗 Connect WhatsApp';
-        btn.disabled = false;
     }
 }
-
 
 async function disconnectWhatsApp() {
     if (!confirm('Disconnect WhatsApp?')) return;
@@ -151,7 +138,7 @@ async function disconnectWhatsApp() {
     try {
         await api.patch(`/admin/store/${storeId}/whatsapp`, { enabled: false });
         alert('✅ Disconnected');
-        loadWhatsApp();
+        loadWhatsapp();
     } catch (err) {
         alert('❌ Failed: ' + err.message);
     }
