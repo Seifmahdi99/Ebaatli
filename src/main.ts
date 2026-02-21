@@ -22,7 +22,7 @@ async function bootstrap() {
     prefix: '/',
   });
 
-  await app.listen(3000);
+  await app.listen(process.env.PORT || 3000, '0.0.0.0');
   console.log('🚀 Platform running on port 3000');
   console.log('📡 Webhook endpoint: http://localhost:3000/webhooks/shopify/orders/created');
   console.log('🛍️  Shopify install: http://localhost:3000/shopify/install?shop=YOUR_SHOP.myshopify.com');
