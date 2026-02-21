@@ -3,27 +3,27 @@
 const routes = {
     overview: {
         title: "Overview",
-        load: () => loadOverview?.()
+        load: () => typeof loadOverview === 'function' && loadOverview()
     },
     usage: {
         title: "Usage",
-        load: () => renderPlaceholder("Usage page coming soon")
+        load: () => typeof loadUsage === 'function' && loadUsage()
     },
     whatsapp: {
         title: "WhatsApp",
-        load: () => loadWhatsApp?.()
+        load: () => typeof loadWhatsapp === 'function' && loadWhatsapp()
     },
     flows: {
         title: "Flows",
-        load: () => loadFlows?.()
+        load: () => typeof loadFlows === 'function' && loadFlows()
     },
     messages: {
         title: "Messages",
-        load: () => renderPlaceholder("Message history coming soon")
+        load: () => typeof loadMessages === 'function' && loadMessages()
     },
     settings: {
         title: "Settings",
-        load: () => renderPlaceholder("Settings page coming soon")
+        load: () => typeof loadSettings === 'function' && loadSettings()
     }
 };
 
@@ -49,22 +49,19 @@ function navigate(page) {
     document.getElementById("pageContent").innerHTML =
         `<div class="loading">Loading…</div>`;
 
-    // load page
-    setTimeout(route.load, 50);
+    // load page with small delay to ensure scripts are ready
+    setTimeout(() => {
+        try {
+            route.load();
+        } catch (err) {
+            document.getElementById("pageContent").innerHTML =
+                `<div style="color:#f87171">Page failed to load: ${err.message}</div>`;
+        }
+    }, 100);
 }
 
 // default page
 navigate("overview");
-
-
-// fallback UI
-function renderPlaceholder(text) {
-    document.getElementById("pageContent").innerHTML = `
-        <div style="padding:40px;text-align:center;color:var(--text-muted)">
-            <h3>${text}</h3>
-        </div>
-    `;
-}
 
 // refresh button
 document.getElementById("refreshBtn")?.addEventListener("click", () => {
