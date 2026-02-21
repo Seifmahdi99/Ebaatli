@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ebaatli</title>
+
+  <link rel="stylesheet" href="Styles/main.css" />
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <header class="topbar" id="topbar" style="display:none">
+    <div class="topbar-logo">⚡</div>
+    <div>
+      <div class="topbar-name">Ebaatli</div>
+      <div class="topbar-store" id="storeName">Loading…</div>
+    </div>
+    <div class="topbar-right">
+      <a id="portalBtn" class="btn btn-ghost btn-sm" href="#" target="_blank">
+        Open Full Portal ↗
+      </a>
+    </div>
+  </header>
+
+  <!-- Tab Strip -->
+  <nav class="tabs" id="tabs" style="display:none">
+    <button class="tab active" data-tab="overview">
+      <span class="tab-icon">📊</span> Overview
+    </button>
+    <button class="tab" data-tab="flows">
+      <span class="tab-icon">⚡</span> Flows
+    </button>
+    <button class="tab" data-tab="whatsapp">
+      <span class="tab-icon">💬</span> WhatsApp
+    </button>
+  </nav>
+
+  <!-- Page Content -->
+  <main class="page" id="pageContent">
+    <div class="loading">
+      <div class="spinner"></div>
+      Connecting to your store…
+    </div>
+  </main>
+
+  <!-- Shopify App Bridge -->
+  <script src="https://unpkg.com/@shopify/app-bridge@3/umd/index.js"></script>
+
+  <!-- Page scripts (loaded before app.js so functions exist) -->
+  <script src="Js/pages/overview.js"></script>
+  <script src="Js/pages/flows.js"></script>
+  <script src="Js/pages/whatsapp.js"></script>
+
+  <!-- Bootstrap (runs last) -->
+  <script src="Js/app.js"></script>
+
+</body>
+</html>

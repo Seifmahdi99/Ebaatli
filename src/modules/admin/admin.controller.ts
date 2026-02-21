@@ -132,69 +132,61 @@ async verifyAdminKey(@Body() body: { key: string }) {
   /**
    * Set WhatsApp credentials for a store
    */
+  @Patch('store/:storeId/whatsapp-credentials')
+  async updateWhatsAppCredentials(
+    @Param('storeId') storeId: string,
+    @Body() body: any,
+  ) {
+    const { whatsappAccessToken, whatsappPhoneNumberId, whatsappBusinessAccountId } = body;
 
-@Patch('store/:storeId/whatsapp-credentials')
-async updateWhatsAppCredentials(
-  @Param('storeId') storeId: string,
-  @Body() body: any,
-) {
-  const { whatsappAccessToken, whatsappPhoneNumberId, whatsappBusinessAccountId } = body;
-  
-  // Validate token format
-  if (whatsappAccessToken && !whatsappAccessToken.startsWith('EAA')) {
-    throw new BadRequestException('Invalid access token format. Token should start with "EAA"');
-  }
-  
-  // Validate Phone Number ID format (should be numeric)
-  if (whatsappPhoneNumberId && !/^\d+$/.test(whatsappPhoneNumberId)) {
-    throw new BadRequestException('Invalid Phone Number ID. Should contain only numbers');
-  }
-  
-  // Validate WABA ID format (should be numeric)
-  if (whatsappBusinessAccountId && !/^\d+$/.test(whatsappBusinessAccountId)) {
-    throw new BadRequestException('Invalid Business Account ID. Should contain only numbers');
-  }
-  
-  // Optional: Test the credentials by making a test API call to Meta
-  if (whatsappAccessToken && whatsappPhoneNumberId) {
-    try {
-      const testResponse = await fetch(
-        `https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}?access_token=${whatsappAccessToken}`
-      );
-      
-      if (!testResponse.ok) {
-        const errorData = await testResponse.json();
-        throw new BadRequestException(
-          `WhatsApp API validation failed: ${errorData.error?.message || 'Invalid credentials'}`
-        );
-      }
-    } catch (error) {
-      if (error instanceof BadRequestException) {
-        throw error;
-      }
-      throw new BadRequestException('Failed to validate WhatsApp credentials with Meta API');
+    if (whatsappAccessToken && !whatsappAccessToken.startsWith('EAA')) {
+      throw new BadRequestException('Invalid access token format. Token should start with "EAA"');
     }
+
+    if (whatsappPhoneNumberId && !/^\d+$/.test(whatsappPhoneNumberId)) {
+      throw new BadRequestException('Invalid Phone Number ID. Should contain only numbers');
+    }
+
+    if (whatsappBusinessAccountId && !/^\d+$/.test(whatsappBusinessAccountId)) {
+      throw new BadRequestException('Invalid Business Account ID. Should contain only numbers');
+    }
+
+    if (whatsappAccessToken && whatsappPhoneNumberId) {
+      try {
+        const testResponse = await fetch(
+          `https://graph.facebook.com/v18.0/${whatsappPhoneNumberId}?access_token=${whatsappAccessToken}`
+        );
+
+        if (!testResponse.ok) {
+          const errorData = await testResponse.json() as { error?: { message?: string } };
+          throw new BadRequestException(
+            `WhatsApp API validation failed: ${errorData.error?.message || 'Invalid credentials'}`
+          );
+        }
+      } catch (error) {
+        if (error instanceof BadRequestException) {
+          throw error;
+        }
+        throw new BadRequestException('Failed to validate WhatsApp credentials with Meta API');
+      }
+    }
+
+    const updatedStore = await this.prisma.store.update({
+      where: { id: storeId },
+      data: {
+        whatsappAccessToken,
+        whatsappPhoneNumberId,
+        whatsappBusinessAccountId,
+        whatsappEnabled: body.whatsappEnabled ?? true,
+      },
+    });
+
+    return {
+      success: true,
+      message: 'WhatsApp credentials validated and saved successfully',
+      store: updatedStore,
+    };
   }
-
-  // If validation passes, update the store
-  const updatedStore = await this.prisma.store.update({
-    where: { id: storeId },
-    data: {
-      whatsappAccessToken,
-      whatsappPhoneNumberId,
-      whatsappBusinessAccountId,
-      whatsappEnabled: body.whatsappEnabled ?? true,
-    },
-  });
-
-  return { 
-    success: true,
-    message: 'WhatsApp credentials validated and saved successfully',
-    store: updatedStore 
-  };
-}
-
-
 
   /**
    * Enable/disable WhatsApp for a store

@@ -13,14 +13,18 @@ import { WhatsAppModule } from './modules/whatsapp/whatsapp.module';
 import { ShopifyModule } from './modules/shopify/shopify.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
 import { TemplateModule } from './modules/template/template.module';
+import { TemplateManagementModule } from './modules/template-management/template-management.module';
 import { FlowModule } from './modules/flow/flow.module';
+import { FlowManagementModule } from './modules/flow-management/flow-management.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MerchantModule } from './modules/merchant/merchant.module';
 import { WhatsAppOAuthModule } from './modules/whatsapp-oauth/whatsapp-oauth.module';
+import { ScheduleModule } from '@nestjs/schedule';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
 
     // 🔥 Serve Admin Panel
     ServeStaticModule.forRoot({
@@ -33,6 +37,12 @@ import { WhatsAppOAuthModule } from './modules/whatsapp-oauth/whatsapp-oauth.mod
       serveRoot: '/merchant',
     }),
 
+    // 🛍️ Serve Shopify Embedded App
+    ServeStaticModule.forRoot({
+      rootPath: join(process.cwd(), 'public', 'shopify'),
+      serveRoot: '/app',
+    }),
+
     PrismaModule,
     CryptoModule,
     SmsModule,
@@ -40,7 +50,9 @@ import { WhatsAppOAuthModule } from './modules/whatsapp-oauth/whatsapp-oauth.mod
     ShopifyModule,
     WebhookModule,
     TemplateModule,
+    TemplateManagementModule,
     FlowModule,
+    FlowManagementModule,
     AdminModule,
     MerchantModule,
     WhatsAppOAuthModule,

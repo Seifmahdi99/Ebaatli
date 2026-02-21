@@ -13,6 +13,10 @@ const routes = {
         title: "WhatsApp",
         load: () => loadWhatsApp?.()
     },
+    flows: {
+        title: "Flows",
+        load: () => loadFlows?.()
+    },
     messages: {
         title: "Messages",
         load: () => renderPlaceholder("Message history coming soon")

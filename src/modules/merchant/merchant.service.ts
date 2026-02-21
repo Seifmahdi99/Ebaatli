@@ -32,6 +32,8 @@ export class MerchantService {
             whatsappQuotaAllocated: store.whatsappQuotaAllocated,
             whatsappQuotaUsed: store.whatsappQuotaUsed,
             whatsappEnabled: store.whatsappEnabled,
+            whatsappPhoneNumberId: store.whatsappPhoneNumberId,
+            whatsappBusinessAccountId: store.whatsappBusinessAccountId,
             counts: store._count,
             subscription: store.subscriptions[0] || null,
         };
@@ -76,6 +78,37 @@ export class MerchantService {
             orderBy: { createdAt: 'desc' },
             take: 100,
         });
+    }
+
+    async getStoreByShop(shop: string) {
+        const store = await this.prisma.store.findFirst({
+            where: { platformStoreId: shop, status: 'active' },
+            include: {
+                _count: {
+                    select: {
+                        customers: true,
+                        orders: true,
+                        messageJobs: true,
+                    },
+                },
+            },
+        });
+
+        if (!store) throw new NotFoundException('Store not found');
+
+        return {
+            storeId: store.id,
+            name: store.name,
+            platform: store.platform,
+            platformStoreId: store.platformStoreId,
+            status: store.status,
+            smsQuotaAllocated: store.smsQuotaAllocated,
+            smsQuotaUsed: store.smsQuotaUsed,
+            whatsappQuotaAllocated: store.whatsappQuotaAllocated,
+            whatsappQuotaUsed: store.whatsappQuotaUsed,
+            whatsappEnabled: store.whatsappEnabled,
+            counts: store._count,
+        };
     }
 
     async getWhatsAppStatus(storeId: string) {
