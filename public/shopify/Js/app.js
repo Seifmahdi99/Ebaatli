@@ -35,18 +35,18 @@ window.APP = null;
   try {
     const res = await fetch(`/merchant/by-shop?shop=${encodeURIComponent(shop)}`);
     if (res.status === 404) {
-      // Store not installed — redirect to OAuth
-      // MUST use top-level redirect, not iframe
-const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${await getApiKey()}&scope=read_orders,write_orders,read_customers,write_customers&redirect_uri=${encodeURIComponent(window.location.origin + '/shopify/callback')}`;      
-      if (window.top !== window.self) {
-        // We're in an iframe - use App Bridge or top redirect
-        if (app && AppBridge) {
-          const Redirect = AppBridge.actions.Redirect;
-          const redirect = Redirect.create(app);
-          redirect.dispatch(Redirect.Action.REMOTE, installUrl);
-        } else {
-          window.top.location.href = installUrl;
-        }
+      // Store not installed — redirect to install endpoint
+      // This handles OAuth properly on the server side
+      const installUrl = `/shopify/install?shop=${encodeURIComponent(shop)}`;
+      
+      if (app && AppBridge) {
+        // Use App Bridge for proper Shopify redirect
+        const Redirect = AppBridge.actions.Redirect;
+        const redirect = Redirect.create(app);
+        redirect.dispatch(Redirect.Action.APP, installUrl);
+      } else if (window.top !== window.self) {
+        // We're in iframe without App Bridge - redirect parent
+        window.top.location.href = window.location.origin + installUrl;
       } else {
         window.location.href = installUrl;
       }
