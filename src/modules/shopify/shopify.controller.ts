@@ -93,16 +93,15 @@ async createSubscription(@Query('shop') shop: string, @Res() res: any) {
     const { confirmationUrl, subscriptionId } =
       await this.shopifyService.createSubscription(shop, store.accessToken);
     
-    this.logger.log(`✅ Redirecting to Shopify billing: ${confirmationUrl}`);
+    this.logger.log(`✅ Subscription created, returning confirmationUrl`);
     
-    // REDIRECT instead of returning JSON
-    return res.redirect(confirmationUrl);
+    // Return JSON instead of redirect
+    return res.json({ confirmationUrl, subscriptionId });
   } catch (error: any) {
     this.logger.error('Billing subscription creation failed:', error);
     return res.status(500).json({ error: error.message || 'Failed to create subscription' });
   }
 }
-
   /**
    * Return current active subscriptions for the shop.
    */

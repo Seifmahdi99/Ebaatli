@@ -102,34 +102,30 @@ async function startSubscription() {
   msg.innerHTML = '';
   
   try {
-    // Call backend to create subscription
     const res = await fetch(`/shopify/billing/subscribe?shop=${encodeURIComponent(shop)}`);
+    const data = await res.json();
     
     if (!res.ok) {
-      throw new Error(`Server error (${res.status})`);
+      throw new Error(data.error || `Server error (${res.status})`);
     }
     
-    // Backend redirected - get the final URL
-    const finalUrl = res.url;
+    if (!data.confirmationUrl) {
+      throw new Error('No confirmation URL returned');
+    }
     
-    console.log('Redirecting to:', finalUrl);
+    console.log('Redirecting to:', data.confirmationUrl);
     
-    // Use App Bridge to redirect (breaks out of iframe)
+    // Use App Bridge to redirect
     const params = new URLSearchParams(window.location.search);
     const host = params.get('host');
     const apiKey = '0e58464dd9279d03af2a142748274751';
     
     if (typeof AppBridge !== 'undefined' && host && apiKey) {
-      const app = AppBridge.createApp({
-        apiKey: apiKey,
-        host: host
-      });
-      
+      const app = AppBridge.createApp({ apiKey, host });
       const redirect = AppBridge.actions.Redirect.create(app);
-      redirect.dispatch(AppBridge.actions.Redirect.Action.REMOTE, finalUrl);
+      redirect.dispatch(AppBridge.actions.Redirect.Action.REMOTE, data.confirmationUrl);
     } else {
-      // Fallback
-      window.top.location.href = finalUrl;
+      window.top.location.href = data.confirmationUrl;
     }
   } catch (err) {
     console.error('Billing error:', err);
@@ -141,3 +137,4 @@ async function startSubscription() {
     btn.textContent = 'Subscribe Now — $20/month';
   }
 }
+
