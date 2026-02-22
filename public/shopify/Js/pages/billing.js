@@ -94,33 +94,13 @@ async function startSubscription() {
   const shop = window.APP?.platformStoreId;
   const btn  = document.getElementById('subscribeBtn');
   const msg  = document.getElementById('billingMsg');
-
+  
   if (!shop) return;
-
-  btn.disabled    = true;
-  btn.textContent = 'Creating subscription…';
-  msg.innerHTML   = '';
-
-  try {
-    const res = await fetch(`/shopify/billing/subscribe?shop=${encodeURIComponent(shop)}`);
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || `Server error (${res.status})`);
-    }
-
-    if (data.confirmationUrl) {
-      // Redirect merchant to Shopify's billing confirmation page
-      window.top.location.href = data.confirmationUrl;
-    } else {
-      throw new Error('No confirmation URL returned. Please try again.');
-    }
-  } catch (err) {
-    msg.innerHTML = `
-      <div class="error-card" style="margin-top:10px;font-size:0.82rem;">
-        ⚠️ ${err.message}
-      </div>`;
-    btn.disabled    = false;
-    btn.textContent = 'Subscribe Now — $20/month';
-  }
+  
+  btn.disabled = true;
+  btn.textContent = 'Redirecting to Shopify billing…';
+  msg.innerHTML = '';
+  
+  // Direct navigation - backend will redirect to Shopify confirmation page
+  window.top.location.href = `/shopify/billing/subscribe?shop=${encodeURIComponent(shop)}`;
 }
