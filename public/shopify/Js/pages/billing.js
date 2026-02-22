@@ -14,7 +14,7 @@ async function loadBilling() {
   // ── Fetch current subscription status ───────────────────────────────────────
   let subscriptions = [];
   try {
-    const res = await fetch(`/shopify/billing/status?shop=${encodeURIComponent(shop)}`);
+    const res = await window.authFetch(`/shopify/billing/status?shop=${encodeURIComponent(shop)}`);
     if (res.ok) {
       const data = await res.json();
       subscriptions = data.subscriptions || [];
@@ -102,7 +102,7 @@ async function startSubscription() {
   msg.innerHTML = '';
   
   try {
-    const res = await fetch(`/shopify/billing/subscribe?shop=${encodeURIComponent(shop)}`);
+    const res = await window.authFetch(`/shopify/billing/subscribe?shop=${encodeURIComponent(shop)}`);
     const data = await res.json();
     
     if (!res.ok) {
@@ -115,14 +115,10 @@ async function startSubscription() {
     
     console.log('Redirecting to:', data.confirmationUrl);
     
-    // Use App Bridge to redirect
-    const params = new URLSearchParams(window.location.search);
-    const host = params.get('host');
-    const apiKey = '0e58464dd9279d03af2a142748274751';
-    
-    if (typeof AppBridge !== 'undefined' && host && apiKey) {
-      const app = AppBridge.createApp({ apiKey, host });
-      const redirect = AppBridge.actions.Redirect.create(app);
+    // Use the App Bridge instance already initialised by app.js
+    const AppBridge = window['@shopify/app-bridge'];
+    if (AppBridge && window.shopifyApp) {
+      const redirect = AppBridge.actions.Redirect.create(window.shopifyApp);
       redirect.dispatch(AppBridge.actions.Redirect.Action.REMOTE, data.confirmationUrl);
     } else {
       window.top.location.href = data.confirmationUrl;

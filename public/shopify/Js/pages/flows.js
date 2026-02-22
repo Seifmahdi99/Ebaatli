@@ -13,7 +13,7 @@ async function loadFlows() {
 
   try {
     // ── 1. Subscription gate ────────────────────────────────────────────────
-    const subRes  = await fetch(`/merchant/subscription/${storeId}`);
+    const subRes  = await window.authFetch(`/merchant/subscription/${storeId}`);
     const subData = subRes.ok ? await subRes.json() : { isSubscribed: false };
 
     if (!subData.isSubscribed) {
@@ -33,7 +33,7 @@ async function loadFlows() {
     }
 
     // ── 2. Load flows ───────────────────────────────────────────────────────
-    const flows = await fetch(`/flows?storeId=${storeId}`).then(r => r.json());
+    const flows = await window.authFetch(`/flows?storeId=${storeId}`).then(r => r.json());
 
     if (!flows || flows.length === 0) {
       document.getElementById('pageContent').innerHTML = `
@@ -103,7 +103,7 @@ async function loadFlows() {
 async function handleFlowToggle(flowId, isActive, el) {
   el.disabled = true;
   try {
-    const res = await fetch(`/flows/${flowId}`, {
+    const res = await window.authFetch(`/flows/${flowId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isActive }),

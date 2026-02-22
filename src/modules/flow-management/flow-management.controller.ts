@@ -1,6 +1,8 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { FlowManagementService } from './flow-management.service';
+import { ShopifySessionGuard } from '../../guards/shopify-session.guard';
 
+@UseGuards(ShopifySessionGuard)
 @Controller('flows')
 export class FlowManagementController {
   constructor(private readonly flowService: FlowManagementService) {}

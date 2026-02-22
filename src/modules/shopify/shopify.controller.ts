@@ -1,7 +1,8 @@
-import { Controller, Get, Query, Res, Logger } from '@nestjs/common';
+import { Controller, Get, Query, Res, Logger, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
 import { ShopifyService } from './shopify.service';
 import { ConfigService } from '@nestjs/config';
+import { ShopifySessionGuard } from '../../guards/shopify-session.guard';
 
 @Controller('shopify')
 export class ShopifyController {
@@ -78,6 +79,7 @@ async callback(@Query() query: any, @Res() res: any) {
    */
 
 
+@UseGuards(ShopifySessionGuard)
 @Get('billing/subscribe')
 async createSubscription(@Query('shop') shop: string, @Res() res: any) {
   if (!shop) {
@@ -105,6 +107,7 @@ async createSubscription(@Query('shop') shop: string, @Res() res: any) {
   /**
    * Return current active subscriptions for the shop.
    */
+  @UseGuards(ShopifySessionGuard)
   @Get('billing/status')
   async getSubscriptionStatus(@Query('shop') shop: string, @Res() res: any) {
     if (!shop) {

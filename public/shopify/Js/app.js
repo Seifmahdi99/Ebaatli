@@ -2,6 +2,9 @@
 
 window.APP = null;
 
+// Populated once App Bridge is ready; used by all page scripts.
+window.authFetch = fetch.bind(window); // plain fetch fallback
+
 (async function init() {
   const params = new URLSearchParams(window.location.search);
   const shop   = params.get('shop');
@@ -13,10 +16,11 @@ window.APP = null;
     return;
   }
 
-  // ── 2. Initialize Shopify App Bridge FIRST ──────────────────────────────────
+  // ── 2. Initialize Shopify App Bridge + session-token-aware fetch ────────────
   let app = null;
-  let AppBridge = window['@shopify/app-bridge'];
-  
+  const AppBridge      = window['@shopify/app-bridge'];
+  const AppBridgeUtils = window['@shopify/app-bridge-utils'];
+
   try {
     const cfgRes = await fetch('/shopify/config');
     if (cfgRes.ok) {
@@ -24,6 +28,24 @@ window.APP = null;
       if (apiKey && host && AppBridge) {
         app = AppBridge.createApp({ apiKey, host });
         window.shopifyApp = app;
+
+        // Build an authenticated fetch that attaches a short-lived Shopify
+        // session token to every request as  Authorization: Bearer <token>
+        if (AppBridgeUtils?.getSessionToken) {
+          window.authFetch = async (url, options = {}) => {
+            try {
+              const token = await AppBridgeUtils.getSessionToken(app);
+              const headers = {
+                ...(options.headers || {}),
+                Authorization: `Bearer ${token}`,
+              };
+              return fetch(url, { ...options, headers });
+            } catch (e) {
+              console.warn('Session token fetch failed, falling back:', e.message);
+              return fetch(url, options);
+            }
+          };
+        }
       }
     }
   } catch (e) {
@@ -33,19 +55,16 @@ window.APP = null;
   // ── 3. Look up store by shop domain ────────────────────────────────────────
   let storeData;
   try {
-    const res = await fetch(`/merchant/by-shop?shop=${encodeURIComponent(shop)}`);
+    const res = await window.authFetch(`/merchant/by-shop?shop=${encodeURIComponent(shop)}`);
     if (res.status === 404) {
       // Store not installed — redirect to install endpoint
-      // This handles OAuth properly on the server side
       const installUrl = `/shopify/install?shop=${encodeURIComponent(shop)}`;
-      
+
       if (app && AppBridge) {
-        // Use App Bridge for proper Shopify redirect
         const Redirect = AppBridge.actions.Redirect;
         const redirect = Redirect.create(app);
         redirect.dispatch(Redirect.Action.APP, installUrl);
       } else if (window.top !== window.self) {
-        // We're in iframe without App Bridge - redirect parent
         window.top.location.href = window.location.origin + installUrl;
       } else {
         window.location.href = installUrl;

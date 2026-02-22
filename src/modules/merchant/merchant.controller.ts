@@ -1,6 +1,8 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { MerchantService } from './merchant.service';
+import { ShopifySessionGuard } from '../../guards/shopify-session.guard';
 
+@UseGuards(ShopifySessionGuard)
 @Controller('merchant')
 export class MerchantController {
     constructor(private readonly merchantService: MerchantService) { }

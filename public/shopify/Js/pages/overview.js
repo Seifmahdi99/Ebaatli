@@ -6,8 +6,8 @@ async function loadOverview() {
 
   try {
     const [store, flows] = await Promise.all([
-      fetch(`/merchant/store/${storeId}`).then(r => r.json()),
-      fetch(`/flows?storeId=${storeId}`).then(r => r.json()).catch(() => []),
+      window.authFetch(`/merchant/store/${storeId}`).then(r => r.json()),
+      window.authFetch(`/flows?storeId=${storeId}`).then(r => r.json()).catch(() => []),
     ]);
 
     const activeFlows  = Array.isArray(flows) ? flows.filter(f => f.isActive).length : 0;

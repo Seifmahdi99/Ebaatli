@@ -5,7 +5,7 @@ async function loadWhatsapp() {
   const { storeId } = window.APP;
 
   try {
-    const store = await fetch(`/merchant/store/${storeId}`).then(r => r.json());
+    const store = await window.authFetch(`/merchant/store/${storeId}`).then(r => r.json());
 
     if (store.whatsappEnabled) {
       // Connected state - show status and disconnect option
@@ -176,7 +176,7 @@ async function handleWhatsAppSubmit(e) {
     btn.textContent = '⏳ Validating...';
     btn.disabled = true;
 
-    const res = await fetch(`/admin/store/${storeId}/whatsapp-credentials`, {
+    const res = await window.authFetch(`/admin/store/${storeId}/whatsapp-credentials`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -216,7 +216,7 @@ async function disconnectWhatsApp() {
   const { storeId } = window.APP;
   
   try {
-    const res = await fetch(`/admin/store/${storeId}/whatsapp`, {
+    const res = await window.authFetch(`/admin/store/${storeId}/whatsapp`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ enabled: false }),
