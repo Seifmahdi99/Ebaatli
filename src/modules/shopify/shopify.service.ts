@@ -287,16 +287,14 @@ export class ShopifyService {
     });
 
     // Create the new active subscription record
-    await this.prisma.subscription.create({
-      data: {
-        storeId,
-        tier: 'pro',
-        status: 'active',
-        shopifySubscriptionId,
-        startDate: new Date(),
-      },
-    });
-
+await this.prisma.subscription.create({
+  data: {
+    storeId,
+    tier: 'pro',
+    status: 'active',
+    startDate: new Date(),
+  },
+});
     this.logger.log(`✅ Subscription saved to DB for store: ${storeId}`);
   }
 
