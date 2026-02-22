@@ -1,6 +1,6 @@
 // ── app.js — Shopify Embedded App Bootstrap ───────────────────────────────────
 
-window.APP = null;   // { storeId, name, ... } populated after lookup
+window.APP = null;
 
 (async function init() {
   const params = new URLSearchParams(window.location.search);
@@ -13,13 +13,43 @@ window.APP = null;   // { storeId, name, ... } populated after lookup
     return;
   }
 
-  // ── 2. Look up store by shop domain ────────────────────────────────────────
+  // ── 2. Initialize Shopify App Bridge FIRST ──────────────────────────────────
+  let app = null;
+  let AppBridge = window['@shopify/app-bridge'];
+  
+  try {
+    const cfgRes = await fetch('/shopify/config');
+    if (cfgRes.ok) {
+      const { apiKey } = await cfgRes.json();
+      if (apiKey && host && AppBridge) {
+        app = AppBridge.createApp({ apiKey, host });
+        window.shopifyApp = app;
+      }
+    }
+  } catch (e) {
+    console.log('App Bridge init:', e.message);
+  }
+
+  // ── 3. Look up store by shop domain ────────────────────────────────────────
   let storeData;
   try {
     const res = await fetch(`/merchant/by-shop?shop=${encodeURIComponent(shop)}`);
     if (res.status === 404) {
-      // Store not installed — trigger OAuth
-      window.location.href = `/shopify/install?shop=${encodeURIComponent(shop)}`;
+      // Store not installed — redirect to OAuth
+      // MUST use top-level redirect, not iframe
+const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${await getApiKey()}&scope=read_orders,write_orders,read_customers,write_customers&redirect_uri=${encodeURIComponent(window.location.origin + '/shopify/callback')}`;      
+      if (window.top !== window.self) {
+        // We're in an iframe - use App Bridge or top redirect
+        if (app && AppBridge) {
+          const Redirect = AppBridge.actions.Redirect;
+          const redirect = Redirect.create(app);
+          redirect.dispatch(Redirect.Action.REMOTE, installUrl);
+        } else {
+          window.top.location.href = installUrl;
+        }
+      } else {
+        window.location.href = installUrl;
+      }
       return;
     }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -30,18 +60,6 @@ window.APP = null;   // { storeId, name, ... } populated after lookup
   }
 
   window.APP = storeData;
-
-  // ── 3. Initialize Shopify App Bridge ────────────────────────────────────────
-  try {
-    const cfgRes = await fetch('/shopify/config');
-    if (cfgRes.ok) {
-      const { apiKey } = await cfgRes.json();
-      if (apiKey && host && window['@shopify/app-bridge']) {
-        const { createApp } = window['@shopify/app-bridge'];
-        createApp({ apiKey, host });
-      }
-    }
-  } catch (_) { /* App Bridge is optional — continue without it */ }
 
   // ── 4. Render shell UI ───────────────────────────────────────────────────────
   document.getElementById('storeName').textContent = storeData.name || shop;
@@ -59,6 +77,16 @@ window.APP = null;   // { storeId, name, ... } populated after lookup
   // ── 6. Load default tab ───────────────────────────────────────────────────────
   navigate('overview');
 })();
+
+async function getApiKey() {
+  try {
+    const res = await fetch('/shopify/config');
+    const { apiKey } = await res.json();
+    return apiKey;
+  } catch {
+    return '';
+  }
+}
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
 function navigate(tab) {
