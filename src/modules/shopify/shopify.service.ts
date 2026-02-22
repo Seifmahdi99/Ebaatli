@@ -213,4 +213,141 @@ export class ShopifyService {
       },
     });
   }
+
+  /**
+   * Create a $20/month recurring subscription via Shopify Billing API
+   */
+  async createSubscription(shop: string, accessToken: string): Promise<{ confirmationUrl: string; subscriptionId: string }> {
+    const appUrl = this.config.get<string>('APP_URL');
+    const returnUrl = `${appUrl}/shopify/billing/success?shop=${encodeURIComponent(shop)}`;
+
+    const mutation = `
+      mutation AppSubscriptionCreate($name: String!, $lineItems: [AppSubscriptionLineItemInput!]!, $returnUrl: URL!) {
+        appSubscriptionCreate(name: $name, returnUrl: $returnUrl, lineItems: $lineItems) {
+          userErrors { field message }
+          appSubscription { id }
+          confirmationUrl
+        }
+      }
+    `;
+
+    const response = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: mutation,
+        variables: {
+          name: 'Ebaatli Pro Plan',
+          returnUrl,
+          lineItems: [
+            {
+              plan: {
+                appRecurringPricingDetails: {
+                  price: { amount: 20, currencyCode: 'USD' },
+                  interval: 'EVERY_30_DAYS',
+                },
+              },
+            },
+          ],
+        },
+      }),
+    });
+
+    const json = await response.json() as any;
+    const result = json.data?.appSubscriptionCreate;
+
+    if (!result) {
+      throw new Error('Invalid response from Shopify billing API');
+    }
+
+    if (result.userErrors?.length > 0) {
+      throw new Error(result.userErrors[0].message);
+    }
+
+    this.logger.log(`✅ Subscription created for ${shop}: ${result.appSubscription.id}`);
+
+    return {
+      confirmationUrl: result.confirmationUrl,
+      subscriptionId: result.appSubscription.id,
+    };
+  }
+
+  /**
+   * Save a confirmed Shopify subscription to the local database.
+   * Cancels any previous active subscriptions for the store first.
+   */
+  async saveSubscriptionToDb(storeId: string, shopifySubscriptionId: string): Promise<void> {
+    // Mark any existing active subscriptions as cancelled
+    await this.prisma.subscription.updateMany({
+      where: { storeId, status: 'active' },
+      data: { status: 'cancelled' },
+    });
+
+    // Create the new active subscription record
+    await this.prisma.subscription.create({
+      data: {
+        storeId,
+        tier: 'pro',
+        status: 'active',
+        shopifySubscriptionId,
+        startDate: new Date(),
+      },
+    });
+
+    this.logger.log(`✅ Subscription saved to DB for store: ${storeId}`);
+  }
+
+  /**
+   * Check if a store has an active subscription in the local database.
+   */
+  async hasActiveSubscription(storeId: string): Promise<boolean> {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { storeId, status: 'active' },
+    });
+    return !!sub;
+  }
+
+  /**
+   * Get active subscriptions for a shop via Shopify Billing API
+   */
+  async getSubscriptionStatus(shop: string, accessToken: string): Promise<any[]> {
+    const query = `
+      query {
+        currentAppInstallation {
+          activeSubscriptions {
+            id
+            name
+            status
+            createdAt
+            currentPeriodEnd
+            lineItems {
+              plan {
+                pricingDetails {
+                  ... on AppRecurringPricing {
+                    price { amount currencyCode }
+                    interval
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    `;
+
+    const response = await fetch(`https://${shop}/admin/api/2024-01/graphql.json`, {
+      method: 'POST',
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ query }),
+    });
+
+    const json = await response.json() as any;
+    return json.data?.currentAppInstallation?.activeSubscriptions || [];
+  }
 }

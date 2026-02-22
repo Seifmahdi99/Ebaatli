@@ -72,17 +72,19 @@ model Store {
 }
 
 model Subscription {
-  id        String   @id @default(uuid())
-  storeId   String   @map("store_id")
-  tier      String
-  status    String
-  startDate DateTime @default(now()) @map("start_date")
-  endDate   DateTime @map("end_date")
-  createdAt DateTime @default(now()) @map("created_at")
+  id                    String    @id @default(uuid())
+  storeId               String    @map("store_id")
+  tier                  String
+  status                String
+  shopifySubscriptionId String?   @map("shopify_subscription_id")
+  startDate             DateTime  @default(now()) @map("start_date")
+  endDate               DateTime? @map("end_date")
+  createdAt             DateTime  @default(now()) @map("created_at")
 
   store Store @relation(fields: [storeId], references: [id], onDelete: Cascade)
 
   @@index([storeId])
+  @@index([status])
   @@map("subscriptions")
 }
 

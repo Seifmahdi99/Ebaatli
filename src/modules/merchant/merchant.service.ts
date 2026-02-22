@@ -111,6 +111,14 @@ export class MerchantService {
         };
     }
 
+    async getSubscriptionStatus(storeId: string) {
+        const sub = await this.prisma.subscription.findFirst({
+            where: { storeId, status: 'active' },
+            orderBy: { createdAt: 'desc' },
+        });
+        return { isSubscribed: !!sub, subscription: sub || null };
+    }
+
     async getWhatsAppStatus(storeId: string) {
         const connection = await this.prisma.whatsAppConnection.findUnique({
             where: { storeId },

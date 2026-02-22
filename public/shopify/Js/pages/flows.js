@@ -12,6 +12,27 @@ async function loadFlows() {
   const { storeId } = window.APP;
 
   try {
+    // ── 1. Subscription gate ────────────────────────────────────────────────
+    const subRes  = await fetch(`/merchant/subscription/${storeId}`);
+    const subData = subRes.ok ? await subRes.json() : { isSubscribed: false };
+
+    if (!subData.isSubscribed) {
+      document.getElementById('pageContent').innerHTML = `
+        <div class="card" style="text-align:center;padding:40px 24px">
+          <div style="font-size:2.5rem;margin-bottom:12px">🔒</div>
+          <div style="font-weight:700;margin-bottom:8px">Subscription Required</div>
+          <div class="text-muted text-sm" style="margin-bottom:20px;max-width:300px;margin-left:auto;margin-right:auto">
+            Subscribe to <strong>Ebaatli Pro ($20/month)</strong> to create and activate automation flows.
+          </div>
+          <button class="btn btn-primary btn-sm"
+                  onclick="document.querySelector('[data-tab=billing]').click()">
+            Subscribe Now ↗
+          </button>
+        </div>`;
+      return;
+    }
+
+    // ── 2. Load flows ───────────────────────────────────────────────────────
     const flows = await fetch(`/flows?storeId=${storeId}`).then(r => r.json());
 
     if (!flows || flows.length === 0) {
@@ -87,6 +108,11 @@ async function handleFlowToggle(flowId, isActive, el) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ isActive }),
     });
+    if (res.status === 403) {
+      el.checked = !isActive;
+      alert('An active subscription is required to enable flows.');
+      return;
+    }
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
     el.checked = !isActive;

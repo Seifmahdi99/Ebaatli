@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Ebaatli — Shopify Automation for SMS & WhatsApp</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:       #0b0d14;
+      --surface:  #111520;
+      --border:   rgba(255,255,255,0.07);
+      --text:     #e8eaf6;
+      --muted:    #6b7280;
+      --dim:      #9ca3af;
+      --accent:   #8b5cf6;
+      --accent2:  #06b6d4;
+      --gradient: linear-gradient(135deg, #8b5cf6, #06b6d4);
+      --success:  #10b981;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 48px;
+      background: rgba(11,13,20,0.85); backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+    .nav-logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--gradient);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 14px rgba(139,92,246,0.4);
+    }
+    .nav-logo-name { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+    .nav-actions { display: flex; gap: 12px; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 9px 20px; border-radius: 9px;
+      font-size: 0.875rem; font-weight: 600; font-family: inherit;
+      cursor: pointer; border: none; transition: opacity 0.2s, transform 0.15s;
+      text-decoration: none;
+    }
+    .btn:hover { opacity: 0.88; transform: translateY(-1px); }
+    .btn-primary { background: var(--gradient); color: #fff; box-shadow: 0 4px 14px rgba(139,92,246,0.35); }
+    .btn-ghost {
+      background: rgba(255,255,255,0.05); color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Hero ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      text-align: center; padding: 120px 24px 80px;
+      position: relative; overflow: hidden;
+    }
+    .hero-glow {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%, -60%);
+      width: 700px; height: 700px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.25);
+      border-radius: 99px; padding: 6px 16px; font-size: 0.8rem; font-weight: 600;
+      color: #a78bfa; margin-bottom: 28px; position: relative;
+    }
+    .hero h1 {
+      font-size: clamp(2.4rem, 5vw, 4rem); font-weight: 800;
+      line-height: 1.15; margin-bottom: 24px; position: relative;
+      letter-spacing: -0.02em;
+    }
+    .gradient-text {
+      background: var(--gradient);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero-sub {
+      font-size: 1.15rem; color: var(--dim); max-width: 560px;
+      margin: 0 auto 44px; line-height: 1.7; position: relative;
+    }
+    .hero-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; position: relative; }
+    .btn-lg { padding: 14px 32px; font-size: 1rem; border-radius: 12px; }
+
+    /* ── Stats ── */
+    .stats-bar {
+      display: flex; justify-content: center; gap: 60px; flex-wrap: wrap;
+      padding: 40px 24px;
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      background: rgba(255,255,255,0.02);
+    }
+    .stat { text-align: center; }
+    .stat-val { font-size: 2rem; font-weight: 800; background: var(--gradient); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .stat-lbl { font-size: 0.82rem; color: var(--muted); margin-top: 4px; }
+
+    /* ── Sections ── */
+    section { padding: 100px 24px; }
+    .section-center { text-align: center; margin-bottom: 60px; }
+    .section-badge {
+      display: inline-block; background: rgba(139,92,246,0.1);
+      border: 1px solid rgba(139,92,246,0.2); border-radius: 99px;
+      padding: 4px 14px; font-size: 0.75rem; font-weight: 600;
+      color: #a78bfa; text-transform: uppercase; letter-spacing: 0.08em;
+      margin-bottom: 16px;
+    }
+    .section-title { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 800; margin-bottom: 14px; letter-spacing: -0.01em; }
+    .section-sub { font-size: 1rem; color: var(--dim); max-width: 520px; margin: 0 auto; line-height: 1.7; }
+
+    .container { max-width: 1100px; margin: 0 auto; }
+
+    /* ── Features Grid ── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;
+    }
+    .feature-card {
+      background: rgba(22,27,45,0.8); border: 1px solid var(--border);
+      border-radius: 16px; padding: 28px;
+      transition: border-color 0.2s, transform 0.2s;
+      backdrop-filter: blur(10px);
+    }
+    .feature-card:hover { border-color: rgba(139,92,246,0.3); transform: translateY(-3px); }
+    .feature-icon {
+      width: 48px; height: 48px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 18px;
+    }
+    .feature-icon-purple { background: rgba(139,92,246,0.15); }
+    .feature-icon-cyan { background: rgba(6,182,212,0.15); }
+    .feature-icon-green { background: rgba(16,185,129,0.15); }
+    .feature-icon-orange { background: rgba(245,158,11,0.15); }
+    .feature-title { font-size: 1rem; font-weight: 700; margin-bottom: 10px; }
+    .feature-desc { font-size: 0.875rem; color: var(--dim); line-height: 1.65; }
+
+    /* ── How it works ── */
+    .steps { display: flex; flex-direction: column; gap: 0; max-width: 640px; margin: 0 auto; }
+    .step {
+      display: flex; gap: 24px; align-items: flex-start;
+      padding: 28px 0; border-bottom: 1px solid var(--border);
+    }
+    .step:last-child { border-bottom: none; }
+    .step-num {
+      width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0;
+      background: var(--gradient);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1rem; font-weight: 800; color: #fff;
+      box-shadow: 0 4px 14px rgba(139,92,246,0.35);
+    }
+    .step-content { flex: 1; }
+    .step-title { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+    .step-desc { font-size: 0.875rem; color: var(--dim); line-height: 1.6; }
+
+    /* ── Pricing ── */
+    .pricing-card {
+      max-width: 440px; margin: 0 auto;
+      background: rgba(22,27,45,0.85); border: 1px solid rgba(139,92,246,0.3);
+      border-radius: 20px; padding: 40px;
+      text-align: center; backdrop-filter: blur(20px);
+      box-shadow: 0 20px 60px rgba(139,92,246,0.15);
+      position: relative; overflow: hidden;
+    }
+    .pricing-card::before {
+      content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: var(--gradient);
+    }
+    .plan-name { font-size: 0.85rem; font-weight: 700; color: #a78bfa; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; }
+    .plan-price { font-size: 3.5rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+    .plan-price span { font-size: 1.2rem; font-weight: 600; color: var(--dim); vertical-align: top; margin-top: 10px; display: inline-block; }
+    .plan-period { font-size: 0.875rem; color: var(--muted); margin: 8px 0 28px; }
+    .plan-features { list-style: none; text-align: left; margin-bottom: 32px; display: flex; flex-direction: column; gap: 12px; }
+    .plan-features li { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; color: var(--dim); }
+    .plan-features li::before { content: '✓'; color: var(--success); font-weight: 700; flex-shrink: 0; }
+    .plan-note { font-size: 0.78rem; color: var(--muted); margin-top: 16px; }
+
+    /* ── CTA ── */
+    .cta-section {
+      background: rgba(139,92,246,0.06); border-top: 1px solid rgba(139,92,246,0.15); border-bottom: 1px solid rgba(139,92,246,0.15);
+      padding: 100px 24px; text-align: center;
+    }
+    .cta-section h2 { font-size: clamp(1.8rem, 3vw, 2.4rem); font-weight: 800; margin-bottom: 16px; }
+    .cta-section p { font-size: 1rem; color: var(--dim); margin-bottom: 36px; }
+
+    /* ── Footer ── */
+    footer {
+      padding: 40px 48px;
+      border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px;
+    }
+    footer .footer-logo { display: flex; align-items: center; gap: 10px; }
+    footer .footer-copy { font-size: 0.8rem; color: var(--muted); }
+    footer .footer-links { display: flex; gap: 20px; }
+    footer .footer-links a { font-size: 0.8rem; color: var(--muted); text-decoration: none; transition: color 0.15s; }
+    footer .footer-links a:hover { color: var(--text); }
+
+    @media (max-width: 640px) {
+      nav { padding: 14px 20px; }
+      .stats-bar { gap: 30px; }
+      section { padding: 70px 20px; }
+      footer { padding: 30px 20px; flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Nav -->
+  <nav>
+    <a class="nav-logo" href="/">
+      <div class="nav-logo-icon">⚡</div>
+      <span class="nav-logo-name">Ebaatli</span>
+    </a>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="/Merchant/index.html">Merchant Login</a>
+      <a class="btn btn-primary" href="/shopify/install?shop=YOUR-STORE.myshopify.com">Install on Shopify</a>
+    </div>
+  </nav>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-glow"></div>
+    <div class="hero-badge">⚡ Shopify Automation Platform</div>
+    <h1>
+      Automate Your Store's<br />
+      <span class="gradient-text">SMS &amp; WhatsApp</span>
+    </h1>
+    <p class="hero-sub">
+      Send the right message at the right moment. Recover abandoned carts, notify customers on orders, and build powerful automation flows — all without writing a single line of code.
+    </p>
+    <div class="hero-actions">
+      <a class="btn btn-primary btn-lg" href="/Merchant/index.html">Open Merchant Dashboard</a>
+      <a class="btn btn-ghost btn-lg" href="#features">Learn More</a>
+    </div>
+  </div>
+
+  <!-- Stats Bar -->
+  <div class="stats-bar">
+    <div class="stat">
+      <div class="stat-val">SMS</div>
+      <div class="stat-lbl">Instant delivery</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">WhatsApp</div>
+      <div class="stat-lbl">Rich messaging</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">Flows</div>
+      <div class="stat-lbl">Visual automation</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val">$20</div>
+      <div class="stat-lbl">Flat monthly price</div>
+    </div>
+  </div>
+
+  <!-- Features -->
+  <section id="features">
+    <div class="container">
+      <div class="section-center">
+        <div class="section-badge">Features</div>
+        <h2 class="section-title">Everything you need to engage customers</h2>
+        <p class="section-sub">From order notifications to cart recovery — Ebaatli handles your messaging automatically.</p>
+      </div>
+      <div class="features-grid">
+        <div class="feature-card">
+          <div class="feature-icon feature-icon-purple">⚡</div>
+          <div class="feature-title">Automation Flows</div>
+          <p class="feature-desc">Build multi-step automation flows with triggers, delays, and conditions. Set it up once and let it run forever.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon-cyan">💬</div>
+          <div class="feature-title">WhatsApp Messaging</div>
+          <p class="feature-desc">Send rich WhatsApp messages directly from your Shopify store. Connect your WhatsApp Business account in minutes.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon-green">📱</div>
+          <div class="feature-title">SMS Notifications</div>
+          <p class="feature-desc">Reach customers where they are with instant SMS alerts for orders, fulfillments, and promotions.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon-orange">🛒</div>
+          <div class="feature-title">Cart Recovery</div>
+          <p class="feature-desc">Automatically follow up on abandoned carts and recover lost revenue with personalized messages.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon-purple">📊</div>
+          <div class="feature-title">Usage Dashboard</div>
+          <p class="feature-desc">Track your SMS and WhatsApp quota usage in real-time. See message history, flow performance, and more.</p>
+        </div>
+        <div class="feature-card">
+          <div class="feature-icon feature-icon-cyan">🔗</div>
+          <div class="feature-title">Shopify Native</div>
+          <p class="feature-desc">Built specifically for Shopify. Install directly from the Shopify App Store and get up and running instantly.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- How It Works -->
+  <section id="how-it-works" style="background: rgba(255,255,255,0.015);">
+    <div class="container">
+      <div class="section-center">
+        <div class="section-badge">How It Works</div>
+        <h2 class="section-title">Up and running in 3 steps</h2>
+        <p class="section-sub">No technical knowledge required. Get started in under 5 minutes.</p>
+      </div>
+      <div class="steps">
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <div class="step-title">Install the Shopify App</div>
+            <p class="step-desc">Click "Install on Shopify" and authorize Ebaatli on your Shopify store. We'll automatically sync your orders and customers.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <div class="step-title">Connect Your Messaging Channels</div>
+            <p class="step-desc">Link your WhatsApp Business account or enable SMS messaging. We handle delivery, rate limits, and compliance.</p>
+          </div>
+        </div>
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <div class="step-title">Build Your First Flow</div>
+            <p class="step-desc">Use the visual flow builder to create automation rules. Choose a trigger (order placed, cart abandoned) and add your message steps.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pricing -->
+  <section id="pricing">
+    <div class="container">
+      <div class="section-center">
+        <div class="section-badge">Pricing</div>
+        <h2 class="section-title">Simple, transparent pricing</h2>
+        <p class="section-sub">One plan. Everything included. No surprises.</p>
+      </div>
+      <div class="pricing-card">
+        <div class="plan-name">Ebaatli Pro</div>
+        <div class="plan-price"><span>$</span>20</div>
+        <div class="plan-period">per month · billed monthly</div>
+        <ul class="plan-features">
+          <li>Unlimited automation flows</li>
+          <li>SMS messaging (quota assigned by admin)</li>
+          <li>WhatsApp Business messaging</li>
+          <li>Cart abandonment recovery</li>
+          <li>Order & fulfillment notifications</li>
+          <li>Real-time usage dashboard</li>
+          <li>Message history & logs</li>
+          <li>Shopify native integration</li>
+        </ul>
+        <a class="btn btn-primary btn-lg" href="/Merchant/index.html" style="width:100%;justify-content:center;">Get Started</a>
+        <p class="plan-note">Subscription managed through your Shopify admin. Cancel anytime.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <div class="cta-section">
+    <div class="container">
+      <h2>Ready to automate your store?</h2>
+      <p>Join merchants who use Ebaatli to engage customers and grow their business.</p>
+      <div style="display:flex;gap:14px;justify-content:center;flex-wrap:wrap;">
+        <a class="btn btn-primary btn-lg" href="/Merchant/index.html">Open Merchant Dashboard</a>
+        <a class="btn btn-ghost btn-lg" href="#features">See Features</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer>
+    <div class="footer-logo">
+      <div class="nav-logo-icon" style="width:28px;height:28px;border-radius:8px;font-size:14px;background:linear-gradient(135deg,#8b5cf6,#06b6d4);display:flex;align-items:center;justify-content:center;">⚡</div>
+      <span style="font-size:0.95rem;font-weight:700;">Ebaatli</span>
+    </div>
+    <span class="footer-copy">&copy; 2026 Ebaatli. All rights reserved.</span>
+    <div class="footer-links">
+      <a href="/Merchant/index.html">Merchant Portal</a>
+      <a href="/admin/">Admin</a>
+    </div>
+  </footer>
+
+</body>
+</html>

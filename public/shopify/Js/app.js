@@ -68,9 +68,10 @@ function navigate(tab) {
 
   setTimeout(() => {
     try {
-      if (tab === 'overview')  loadOverview?.();
+      if (tab === 'overview')       loadOverview?.();
       else if (tab === 'flows')     loadFlows?.();
       else if (tab === 'whatsapp')  loadWhatsapp?.();
+      else if (tab === 'billing')   loadBilling?.();
     } catch (err) {
       document.getElementById('pageContent').innerHTML =
         `<div class="error-card">Failed to load page: ${err.message}</div>`;

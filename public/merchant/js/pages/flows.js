@@ -13,11 +13,12 @@ const CHANNELS = [
 ];
 
 // ── State ──────────────────────────────────────────────────────────────────────
-let _flows     = [];
-let _templates = [];
-let _editing   = null;   // null = create mode, string = flow id being edited
-let _steps     = [];     // current builder steps
-let _dragIdx   = null;
+let _flows        = [];
+let _templates    = [];
+let _editing      = null;   // null = create mode, string = flow id being edited
+let _steps        = [];     // current builder steps
+let _dragIdx      = null;
+let _isSubscribed = false;  // subscription gate
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 async function loadFlows() {
@@ -28,6 +29,10 @@ async function loadFlows() {
     `<div class="loading">Loading flows…</div>`;
 
   try {
+    // Check subscription status first
+    const subData = await api.get(`/merchant/subscription/${storeId}`).catch(() => ({ isSubscribed: false }));
+    _isSubscribed = subData.isSubscribed === true;
+
     [_flows, _templates] = await Promise.all([
       api.get(`/flows?storeId=${storeId}`),
       api.get(`/templates?storeId=${storeId}`).catch(() => []),
@@ -51,10 +56,26 @@ function renderFlowList() {
          <div style="font-size:0.85rem">Create your first automation flow below.</div>
        </div>`;
 
+  const subscriptionBanner = !_isSubscribed ? `
+    <div class="alert alert-error" style="display:flex;align-items:center;gap:14px;margin-bottom:4px">
+      <div style="font-size:1.4rem">🔒</div>
+      <div style="flex:1">
+        <div style="font-weight:700;margin-bottom:2px">Subscription Required</div>
+        <div style="font-size:0.82rem;opacity:.9">
+          You need an active Ebaatli Pro subscription to create or enable automation flows.
+          Subscribe for <strong>$20/month</strong> through your Shopify admin.
+        </div>
+      </div>
+    </div>` : '';
+
   document.getElementById('pageContent').innerHTML = `
     <div style="display:flex;flex-direction:column;gap:16px">
+      ${subscriptionBanner}
       <div style="display:flex;justify-content:flex-end">
-        <button class="btn btn-primary" onclick="openBuilder(null)">+ New Flow</button>
+        <button class="btn btn-primary" onclick="openBuilder(null)"
+                ${!_isSubscribed ? 'disabled style="opacity:.45;cursor:not-allowed"' : ''}>
+          + New Flow
+        </button>
       </div>
       ${flowCards}
     </div>
@@ -177,6 +198,10 @@ function builderOverlayHTML() {
 
 // ── Builder open / close ───────────────────────────────────────────────────────
 function openBuilder(flow) {
+  if (!_isSubscribed) {
+    alert('An active subscription is required to create or edit automation flows.');
+    return;
+  }
   _editing = flow ? flow.id : null;
   _steps   = flow
     ? (flow.automationSteps || []).map(s => ({
@@ -455,14 +480,19 @@ async function saveFlow() {
 
 // ── Toggle / Delete ────────────────────────────────────────────────────────────
 async function handleToggle(flowId, isActive, el) {
+  if (isActive && !_isSubscribed) {
+    el.checked = false;
+    alert('An active subscription is required to enable automation flows.');
+    return;
+  }
   el.disabled = true;
   try {
     await api.patch(`/flows/${flowId}`, { isActive });
     const flow = _flows.find(f => f.id === flowId);
     if (flow) flow.isActive = isActive;
-  } catch {
+  } catch (err) {
     el.checked = !isActive;
-    alert('Failed to update flow.');
+    alert('Failed to update flow: ' + (err.message || ''));
   } finally {
     el.disabled = false;
   }

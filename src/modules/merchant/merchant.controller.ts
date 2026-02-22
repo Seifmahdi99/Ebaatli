@@ -35,6 +35,11 @@ export class MerchantController {
         return this.merchantService.getOrders(storeId);
     }
 
+    @Get('subscription/:storeId')
+    getSubscriptionStatus(@Param('storeId') storeId: string) {
+        return this.merchantService.getSubscriptionStatus(storeId);
+    }
+
     @Get('whatsapp/:storeId')
     getWhatsAppStatus(@Param('storeId') storeId: string) {
         return this.merchantService.getWhatsAppStatus(storeId);

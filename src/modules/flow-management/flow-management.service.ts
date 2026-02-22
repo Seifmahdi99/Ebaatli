@@ -1,9 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
 export class FlowManagementService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private async requireSubscription(storeId: string): Promise<void> {
+    const sub = await this.prisma.subscription.findFirst({
+      where: { storeId, status: 'active' },
+    });
+    if (!sub) {
+      throw new ForbiddenException(
+        'An active subscription is required to create or enable automation flows.',
+      );
+    }
+  }
 
   async getFlows(storeId: string) {
     return this.prisma.automationFlow.findMany({
@@ -29,10 +40,13 @@ export class FlowManagementService {
   }
 
   async createFlow(data: any) {
-    const { steps, ...flowData } = data;
-    
+    const { steps, storeId, ...flowData } = data;
+
+    await this.requireSubscription(storeId);
+
     return this.prisma.automationFlow.create({
       data: {
+        storeId,
         ...flowData,
         automationSteps: {
           create: steps || [],
@@ -46,7 +60,18 @@ export class FlowManagementService {
 
   async updateFlow(flowId: string, data: any) {
     const { steps, ...flowData } = data;
-    
+
+    // If trying to enable a flow, verify subscription first
+    if (flowData.isActive === true) {
+      const flow = await this.prisma.automationFlow.findUnique({
+        where: { id: flowId },
+        select: { storeId: true },
+      });
+      if (flow) {
+        await this.requireSubscription(flow.storeId);
+      }
+    }
+
     // Update flow
     await this.prisma.automationFlow.update({
       where: { id: flowId },
@@ -58,7 +83,7 @@ export class FlowManagementService {
       await this.prisma.automationStep.deleteMany({
         where: { flowId },
       });
-      
+
       await this.prisma.automationStep.createMany({
         data: steps.map((step: any, index: number) => ({
           flowId,

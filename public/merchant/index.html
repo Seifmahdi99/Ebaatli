@@ -4,12 +4,12 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ebaatli Merchant</title>
+    <title>Ebaatli Merchant Login</title>
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
         rel="stylesheet" />
-    <link rel="stylesheet" href="styles/main.css" />
+    <link rel="stylesheet" href="Styles/main.css" />
 
     <style>
         body {
@@ -20,7 +20,7 @@
             background: var(--bg);
         }
 
-        .loading-card {
+        .login-card {
             background: var(--card-bg);
             border: 1px solid var(--border);
             border-radius: 20px;
@@ -45,13 +45,102 @@
             box-shadow: 0 8px 24px rgba(139, 92, 246, 0.4);
         }
 
-        .error {
-            color: #f87171;
-            margin-top: 16px;
+        .card-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+            color: var(--text);
+        }
+
+        .card-sub {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 32px;
+        }
+
+        /* ── Form ── */
+        .form-group {
+            text-align: left;
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 6px;
+        }
+
+        .form-control {
+            width: 100%;
+            padding: 11px 14px;
+            background: var(--input-bg);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text);
             font-size: 0.9rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-control:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.12);
+        }
+
+        .form-control::placeholder { color: var(--text-muted); }
+
+        .btn-login {
+            width: 100%;
+            padding: 12px;
+            background: var(--gradient);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            font-family: inherit;
+            cursor: pointer;
+            margin-top: 8px;
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.35);
+            transition: opacity 0.2s, transform 0.15s;
+        }
+
+        .btn-login:hover { opacity: 0.88; transform: translateY(-1px); }
+        .btn-login:active { transform: translateY(0); }
+
+        .divider {
+            display: flex; align-items: center; gap: 12px;
+            margin: 22px 0; color: var(--text-muted); font-size: 0.78rem;
+        }
+        .divider::before, .divider::after {
+            content: ''; flex: 1; height: 1px; background: var(--border);
+        }
+
+        .shopify-note {
+            background: rgba(139, 92, 246, 0.08);
+            border: 1px solid rgba(139, 92, 246, 0.2);
+            border-radius: 9px;
+            padding: 12px 14px;
+            font-size: 0.8rem;
+            color: #a78bfa;
+            text-align: left;
+            line-height: 1.5;
+        }
+
+        .error-msg {
+            color: #f87171;
+            font-size: 0.85rem;
+            margin-top: 12px;
+            min-height: 20px;
         }
 
         .spinner {
+            display: none;
             margin: 18px auto 0;
             width: 24px;
             height: 24px;
@@ -61,37 +150,111 @@
             animation: spin 1s linear infinite;
         }
 
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .back-link {
+            display: inline-block;
+            margin-top: 20px;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-decoration: none;
+            transition: color 0.15s;
         }
+        .back-link:hover { color: var(--text); }
     </style>
 </head>
 
 <body>
-    <div class="loading-card">
+    <!-- Auto-login state (from Shopify redirect) -->
+    <div class="login-card" id="loginCard">
         <div class="logo">⚡</div>
-        <h2>Opening your store...</h2>
-        <p style="color:var(--text-muted)">Connecting to Ebaatli</p>
-        <div class="spinner"></div>
-        <div class="error" id="errorMsg"></div>
+        <div class="card-title">Merchant Login</div>
+        <div class="card-sub" id="cardSub">Enter your Store ID to access the dashboard</div>
+
+        <div id="loginForm">
+            <div class="form-group">
+                <label for="storeIdInput">Store ID</label>
+                <input
+                    id="storeIdInput"
+                    class="form-control"
+                    type="text"
+                    placeholder="e.g. clx9abc123def456..."
+                    autocomplete="off"
+                    spellcheck="false"
+                />
+            </div>
+            <button class="btn-login" id="loginBtn" onclick="handleLogin()">
+                Open Dashboard
+            </button>
+            <div class="error-msg" id="errorMsg"></div>
+            <div class="spinner" id="spinner"></div>
+
+            <div class="divider">or</div>
+
+            <div class="shopify-note">
+                🛍️ <strong>Shopify merchants:</strong> Open this portal directly from your Shopify Admin under the Ebaatli app — your Store ID will be filled automatically.
+            </div>
+        </div>
+
+        <a class="back-link" href="/">← Back to Ebaatli.com</a>
     </div>
 
     <script>
-        const params = new URLSearchParams(window.location.search);
-        const storeId = params.get('storeId');
+        const errorEl  = document.getElementById('errorMsg');
+        const spinner  = document.getElementById('spinner');
+        const loginBtn = document.getElementById('loginBtn');
 
-        if (!storeId) {
-            document.getElementById('errorMsg').innerText =
-                "Invalid access. This panel must be opened from your Shopify store.";
-        } else {
-            localStorage.setItem('storeId', storeId);
+        // ── Auto-login if ?storeId= is in URL (coming from Shopify) ──────────
+        (function autoLogin() {
+            const params  = new URLSearchParams(window.location.search);
+            const storeId = params.get('storeId');
 
-            // small delay for UX
-            setTimeout(() => {
+            if (storeId) {
+                document.getElementById('cardSub').innerText = 'Connecting to your store…';
+                document.getElementById('loginForm').style.display = 'none';
+                spinner.style.display = 'block';
+                localStorage.setItem('storeId', storeId);
+                setTimeout(() => { window.location.href = 'dashboard.html'; }, 600);
+            }
+        })();
+
+        // ── Manual login ─────────────────────────────────────────────────────
+        document.getElementById('storeIdInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') handleLogin();
+        });
+
+        async function handleLogin() {
+            const input   = document.getElementById('storeIdInput');
+            const storeId = input.value.trim();
+
+            errorEl.innerText = '';
+
+            if (!storeId) {
+                errorEl.innerText = 'Please enter your Store ID.';
+                input.focus();
+                return;
+            }
+
+            // Quick validation: verify the store exists before redirecting
+            loginBtn.disabled = true;
+            spinner.style.display = 'block';
+
+            try {
+                const res = await fetch(`/merchant/store/${encodeURIComponent(storeId)}`);
+                if (res.status === 404) {
+                    throw new Error('Store not found. Please check your Store ID and try again.');
+                }
+                if (!res.ok) {
+                    throw new Error('Could not reach the server. Please try again.');
+                }
+
+                localStorage.setItem('storeId', storeId);
                 window.location.href = 'dashboard.html';
-            }, 600);
+            } catch (err) {
+                errorEl.innerText = err.message;
+                spinner.style.display = 'none';
+                loginBtn.disabled = false;
+            }
         }
     </script>
 </body>
