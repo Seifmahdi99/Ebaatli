@@ -257,9 +257,11 @@ export class ShopifyService {
     });
 
     const json = await response.json() as any;
+    this.logger.log('Shopify billing API response:', JSON.stringify(json, null, 2));
     const result = json.data?.appSubscriptionCreate;
-
-    if (!result) {
+     this.logger.log('Extracted result:', JSON.stringify(result, null, 2));
+    if (!result || !result.confirmationUrl) {
+ this.logger.error('Invalid result structure:', json);
       throw new Error('Invalid response from Shopify billing API');
     }
 
