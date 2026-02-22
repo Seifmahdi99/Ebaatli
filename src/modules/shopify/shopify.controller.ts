@@ -76,26 +76,32 @@ async callback(@Query() query: any, @Res() res: any) {
    * Create a $20/month subscription for the given shop.
    * Returns { confirmationUrl } — the frontend should redirect to this URL.
    */
-  @Get('billing/subscribe')
-  async createSubscription(@Query('shop') shop: string, @Res() res: any) {
-    if (!shop) {
-      return res.status(400).json({ error: 'shop parameter required' });
-    }
 
-    const store = await this.shopifyService.getStoreByShop(shop);
-    if (!store) {
-      return res.status(404).json({ error: 'Store not found. Please install the app first.' });
-    }
 
-    try {
-      const { confirmationUrl, subscriptionId } =
-        await this.shopifyService.createSubscription(shop, store.accessToken);
-      return res.json({ confirmationUrl, subscriptionId });
-    } catch (error: any) {
-      this.logger.error('Billing subscription creation failed:', error);
-      return res.status(500).json({ error: error.message || 'Failed to create subscription' });
-    }
+@Get('billing/subscribe')
+async createSubscription(@Query('shop') shop: string, @Res() res: any) {
+  if (!shop) {
+    return res.status(400).json({ error: 'shop parameter required' });
   }
+  
+  const store = await this.shopifyService.getStoreByShop(shop);
+  if (!store) {
+    return res.status(404).json({ error: 'Store not found. Please install the app first.' });
+  }
+  
+  try {
+    const { confirmationUrl, subscriptionId } =
+      await this.shopifyService.createSubscription(shop, store.accessToken);
+    
+    this.logger.log(`✅ Redirecting to Shopify billing: ${confirmationUrl}`);
+    
+    // REDIRECT instead of returning JSON
+    return res.redirect(confirmationUrl);
+  } catch (error: any) {
+    this.logger.error('Billing subscription creation failed:', error);
+    return res.status(500).json({ error: error.message || 'Failed to create subscription' });
+  }
+}
 
   /**
    * Return current active subscriptions for the shop.
