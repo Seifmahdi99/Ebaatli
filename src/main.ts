@@ -1,37 +1,35 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { NestExpressApplication } from '@nestjs/platform-express';
-import { join } from 'path';
+import { NestExpressApplication, ExpressAdapter } from '@nestjs/platform-express';
+import * as express from 'express';
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
-  
+  // Create a raw Express instance and register the CSP middleware FIRST,
+  // before NestJS initialises ServeStaticModule (which uses onModuleInit and
+  // therefore registers express.static() during NestFactory.create()).
+  // If we add app.use() after create() the static-file handler has already
+  // been pushed onto the middleware stack and will send the response before
+  // the CSP middleware ever runs — breaking Shopify's iframe embedding.
+  const server = express();
+
+  server.use((_req: any, res: any, next: any) => {
+    res.setHeader(
+      'Content-Security-Policy',
+      `frame-ancestors https://*.myshopify.com https://admin.shopify.com https://partners.shopify.com;`,
+    );
+    res.removeHeader('X-Frame-Options');
+    next();
+  });
+
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModule,
+    new ExpressAdapter(server),
+  );
+
   // Enable CORS
   app.enableCors({
     origin: true,
     credentials: true,
-  });
-
-  // Allow Shopify Admin to embed this app in an iframe
-  // This must be before static assets
-  app.use((req: any, res: any, next: any) => {
-    const shop = req.query.shop || req.headers['x-shopify-shop-domain'] || '';
-    
-    // Set CSP header to allow Shopify iframe embedding
-    res.setHeader(
-      'Content-Security-Policy',
-      `frame-ancestors https://*.myshopify.com https://admin.shopify.com https://partners.shopify.com;`
-    );
-    
-    // Remove X-Frame-Options if set (it conflicts with CSP frame-ancestors)
-    res.removeHeader('X-Frame-Options');
-    
-    next();
-  });
-
-  // Serve static files (admin panel)
-  app.useStaticAssets(join(__dirname, '..', 'public'), {
-    prefix: '/',
   });
 
   const port = process.env.PORT || 3000;
