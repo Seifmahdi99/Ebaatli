@@ -98,9 +98,46 @@ async function startSubscription() {
   if (!shop) return;
   
   btn.disabled = true;
-  btn.textContent = 'Redirecting to Shopify billing…';
+  btn.textContent = 'Creating subscription…';
   msg.innerHTML = '';
   
-  // Direct navigation - backend will redirect to Shopify confirmation page
-  window.top.location.href = `/shopify/billing/subscribe?shop=${encodeURIComponent(shop)}`;
+  try {
+    // Call backend to create subscription
+    const res = await fetch(`/shopify/billing/subscribe?shop=${encodeURIComponent(shop)}`);
+    
+    if (!res.ok) {
+      throw new Error(`Server error (${res.status})`);
+    }
+    
+    // Backend redirected - get the final URL
+    const finalUrl = res.url;
+    
+    console.log('Redirecting to:', finalUrl);
+    
+    // Use App Bridge to redirect (breaks out of iframe)
+    const params = new URLSearchParams(window.location.search);
+    const host = params.get('host');
+    const apiKey = '0e58464dd9279d03af2a142748274751';
+    
+    if (typeof AppBridge !== 'undefined' && host && apiKey) {
+      const app = AppBridge.createApp({
+        apiKey: apiKey,
+        host: host
+      });
+      
+      const redirect = AppBridge.actions.Redirect.create(app);
+      redirect.dispatch(AppBridge.actions.Redirect.Action.REMOTE, finalUrl);
+    } else {
+      // Fallback
+      window.top.location.href = finalUrl;
+    }
+  } catch (err) {
+    console.error('Billing error:', err);
+    msg.innerHTML = `
+      <div class="error-card" style="margin-top:10px;font-size:0.82rem;">
+        ⚠️ ${err.message || 'Failed to create subscription'}
+      </div>`;
+    btn.disabled = false;
+    btn.textContent = 'Subscribe Now — $20/month';
+  }
 }
