@@ -7,20 +7,31 @@ import * as crypto from 'crypto';
 export class ShopifyService {
   private readonly logger = new Logger(ShopifyService.name);
 
+  // In-memory nonce store for OAuth CSRF protection.
+  // Maps nonce → expiry timestamp (ms). Nonces expire after 10 minutes.
+  private readonly pendingNonces = new Map<string, number>();
+  private static readonly NONCE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
   ) {}
 
   /**
-   * Generate Shopify OAuth URL
-   * Merchant clicks this to install our app
+   * Generate Shopify OAuth URL.
+   * The nonce is stored server-side and validated in the callback to
+   * prevent CSRF attacks.
    */
   generateAuthUrl(shop: string): string {
     const apiKey = this.config.get<string>('SHOPIFY_API_KEY');
     const scopes = this.config.get<string>('SHOPIFY_SCOPES');
     const redirectUri = this.config.get<string>('SHOPIFY_REDIRECT_URI');
     const nonce = crypto.randomBytes(16).toString('hex');
+
+    // Store nonce with expiry
+    this.pendingNonces.set(nonce, Date.now() + ShopifyService.NONCE_TTL_MS);
+    // Clean up any expired nonces while we're here
+    this.purgeExpiredNonces();
 
     const authUrl = `https://${shop}/admin/oauth/authorize` +
       `?client_id=${apiKey}` +
@@ -30,6 +41,26 @@ export class ShopifyService {
 
     this.logger.log(`Generated auth URL for shop: ${shop}`);
     return authUrl;
+  }
+
+  /**
+   * Validate and consume an OAuth state nonce.
+   * Returns true if the nonce is valid and unused; false otherwise.
+   * Each nonce can only be used once (consumed on validation).
+   */
+  validateAndConsumeNonce(nonce: string): boolean {
+    const expiry = this.pendingNonces.get(nonce);
+    if (expiry === undefined) return false;        // unknown nonce
+    this.pendingNonces.delete(nonce);              // consume immediately
+    if (Date.now() > expiry) return false;         // expired
+    return true;
+  }
+
+  private purgeExpiredNonces(): void {
+    const now = Date.now();
+    for (const [nonce, expiry] of this.pendingNonces) {
+      if (now > expiry) this.pendingNonces.delete(nonce);
+    }
   }
 
   /**

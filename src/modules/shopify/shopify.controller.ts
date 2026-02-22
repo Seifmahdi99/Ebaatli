@@ -31,6 +31,12 @@ async callback(@Query() query: any, @Res() res: any) {
     return res.status(400).json({ error: 'Missing code or shop' });
   }
 
+  // Validate OAuth state nonce — prevents CSRF attacks
+  if (!state || !this.shopifyService.validateAndConsumeNonce(state)) {
+    this.logger.warn(`Invalid or missing OAuth state for shop: ${shop}`);
+    return res.status(403).json({ error: 'Invalid OAuth state. Please try installing the app again.' });
+  }
+
   try {
     // Exchange code for access token
     const accessToken = await this.shopifyService.exchangeToken(shop, code);
