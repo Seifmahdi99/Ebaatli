@@ -158,6 +158,44 @@ export class WebhookService {
     }
   }
 
+  async handleCustomerRedact(shop: string, payload: any) {
+    this.logger.log(`Processing customer redact for shop: ${shop}`);
+
+    try {
+      const store = await this.prisma.store.findFirst({
+        where: { platform: 'shopify', platformStoreId: shop },
+      });
+
+      if (!store) {
+        this.logger.warn(`Store not found for customer redact: ${shop}`);
+        return;
+      }
+
+      const platformCustomerId = String(
+        payload.customer?.id || payload.id || '',
+      );
+      if (!platformCustomerId) return;
+
+      // Anonymise PII — keep the record for relational integrity but remove personal data
+      await this.prisma.customer.updateMany({
+        where: { storeId: store.id, platformCustomerId },
+        data: {
+          firstName: 'REDACTED',
+          lastName: 'REDACTED',
+          email: null,
+          phone: null,
+        },
+      });
+
+      this.logger.log(
+        `✅ Customer ${platformCustomerId} redacted for shop ${shop}`,
+      );
+    } catch (error: any) {
+      this.logger.error(`❌ Error handling customer redact: ${error.message}`);
+      throw error;
+    }
+  }
+
   async handleAppUninstalled(shop: string) {
     this.logger.log(`Processing app uninstall for shop: ${shop}`);
     await this.prisma.store.updateMany({

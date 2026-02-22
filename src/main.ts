@@ -5,7 +5,17 @@ import express from 'express';
 
 async function bootstrap() {
   const server = express();
-  
+
+  // Capture raw body for Shopify webhook HMAC verification (must be before NestJS body parser)
+  server.use(
+    express.json({
+      verify: (req: any, _res, buf) => {
+        req.rawBody = buf;
+      },
+    }),
+  );
+  server.use(express.urlencoded({ extended: true }));
+
   // CSP middleware for Shopify iframe embedding
   server.use((_req: any, res: any, next: any) => {
     res.setHeader(
@@ -42,6 +52,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(
     AppModule,
     new ExpressAdapter(server),
+    { bodyParser: false }, // We handle body parsing above with raw body capture
   );
 
   app.enableCors({
