@@ -67,6 +67,18 @@ async callback(@Query() query: any, @Res() res: any) {
     };
   }
 
+  /**
+   * Diagnostic: list all webhooks currently registered with Shopify for a shop.
+   * GET /shopify/webhooks/list?shop=mystore.myshopify.com
+   */
+  @Get('webhooks/list')
+  async listWebhooks(@Query('shop') shop: string) {
+    if (!shop) return { error: 'shop query param required' };
+    const store = await this.shopifyService.getStoreByShop(shop);
+    if (!store) return { error: 'Store not found' };
+    return this.shopifyService.listWebhooks(shop, store.accessToken);
+  }
+
   @Get('success')
   success(@Query('shop') shop: string, @Query('store_id') storeId: string) {
     return {
