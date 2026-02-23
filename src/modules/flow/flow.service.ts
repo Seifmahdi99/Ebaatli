@@ -242,9 +242,19 @@ export class FlowService {
 
         if (job.channel === 'sms') {
           await this.smsService.sendSms(job.storeId, { to: phone, message: content });
-        } else if (job.channel === 'whatsapp') {
-          await this.whatsAppService.sendMessage(job.storeId, { to: phone, message: content });
-        }
+        }  else if (job.channel === 'whatsapp') {
+  // Check if it's a template
+  if (content === 'hello_world' || content.includes('template')) {
+    await this.whatsAppService.sendTemplate(job.storeId, { 
+      to: phone, 
+      templateName: 'hello_world'
+    });
+  } else {
+    await this.whatsAppService.sendMessage(job.storeId, { 
+      to: phone, 
+      message: content 
+    });
+  }      }
 
         await this.prisma.messageJob.update({
           where: { id: job.id },
