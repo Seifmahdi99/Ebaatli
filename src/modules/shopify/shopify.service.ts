@@ -146,40 +146,41 @@ export class ShopifyService implements OnApplicationBootstrap {
     };
 
     // Define webhooks with correct topic names (underscores, not slashes)
-    const desired = [
-      {
-        topic: 'ORDERS_CREATE',
-        address: `${appUrl}/webhooks/shopify/orders/created`,
-      },
-      {
-        topic: 'ORDERS_UPDATED',
-        address: `${appUrl}/webhooks/shopify/orders/updated`,
-      },
-      {
-        topic: 'ORDERS_CANCELLED',
-        address: `${appUrl}/webhooks/shopify/orders/cancelled`,
-      },
-      {
-        topic: 'CHECKOUTS_CREATE',
-        address: `${appUrl}/webhooks/shopify/checkouts/created`,
-      },
-      {
-        topic: 'APP_UNINSTALLED',
-        address: `${appUrl}/webhooks/shopify/uninstalled`,
-      },
-      {
-        topic: 'CUSTOMERS_DATA_REQUEST',
-        address: `${appUrl}/webhooks/shopify/customers/data_request`,
-      },
-      {
-        topic: 'CUSTOMERS_REDACT',
-        address: `${appUrl}/webhooks/shopify/customers/redact`,
-      },
-      {
-        topic: 'SHOP_REDACT',
-        address: `${appUrl}/webhooks/shopify/shop/redact`,
-      },
-    ];
+
+const desired = [
+  {
+    topic: 'orders/create',           // lowercase with slash!
+    address: `${appUrl}/webhooks/shopify/orders/created`,
+  },
+  {
+    topic: 'orders/updated',
+    address: `${appUrl}/webhooks/shopify/orders/updated`,
+  },
+  {
+    topic: 'orders/cancelled',
+    address: `${appUrl}/webhooks/shopify/orders/cancelled`,
+  },
+  {
+    topic: 'checkouts/create',
+    address: `${appUrl}/webhooks/shopify/checkouts/created`,
+  },
+  {
+    topic: 'app/uninstalled',
+    address: `${appUrl}/webhooks/shopify/uninstalled`,
+  },
+  {
+    topic: 'customers/data_request',
+    address: `${appUrl}/webhooks/shopify/customers/data_request`,
+  },
+  {
+    topic: 'customers/redact',
+    address: `${appUrl}/webhooks/shopify/customers/redact`,
+  },
+  {
+    topic: 'shop/redact',
+    address: `${appUrl}/webhooks/shopify/shop/redact`,
+  },
+];
 
     // 1. Fetch the current webhook list from Shopify
     const listRes  = await fetch(`${baseUrl}/webhooks.json`, { headers: authHdr });
