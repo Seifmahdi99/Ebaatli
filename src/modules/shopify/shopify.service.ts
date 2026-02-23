@@ -337,13 +337,16 @@ const desired = [
     const json = await response.json() as any;
     const result = json.data?.appSubscriptionCreate;
 
-    if (!result || !result.confirmationUrl) {
-      this.logger.error('Invalid result structure:', json);
-      throw new Error('Invalid response from Shopify billing API');
+    // Surface userErrors before the generic check so the real reason is visible
+    if (result?.userErrors?.length > 0) {
+      const msg = result.userErrors.map((e: any) => `[${e.field}] ${e.message}`).join('; ');
+      this.logger.error('Shopify billing userErrors:', msg);
+      throw new Error(msg);
     }
 
-    if (result.userErrors?.length > 0) {
-      throw new Error(result.userErrors[0].message);
+    if (!result || !result.confirmationUrl) {
+      this.logger.error('Invalid result structure from Shopify:', JSON.stringify(json, null, 2));
+      throw new Error('Invalid response from Shopify billing API');
     }
 
     this.logger.log(`✅ Subscription created for ${shop}: ${result.appSubscription.id}`);
