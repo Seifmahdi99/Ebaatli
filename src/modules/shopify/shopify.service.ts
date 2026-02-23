@@ -400,24 +400,26 @@ export class ShopifyService implements OnApplicationBootstrap {
   /**
    * Save subscription to database
    */
-  async saveSubscriptionToDb(storeId: string, shopifySubscriptionId: string) {
+
+async saveSubscriptionToDb(storeId: string, shopifySubscriptionId: string) {
     return this.prisma.subscription.upsert({
       where: {
-        store_id: storeId,
+        storeId: storeId,
       },
       create: {
-        store_id: storeId,
-        shopify_subscription_id: shopifySubscriptionId,
+        storeId: storeId,
+        shopifySubscriptionId: shopifySubscriptionId,
         status: 'ACTIVE',
         tier: 'pro',
-        start_date: new Date(),
+        startDate: new Date(),
       },
       update: {
-        shopify_subscription_id: shopifySubscriptionId,
+        shopifySubscriptionId: shopifySubscriptionId,
         status: 'ACTIVE',
       },
     });
   }
+
 
   /**
    * On startup, re-register webhooks for every active store so that the
