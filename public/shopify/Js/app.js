@@ -80,19 +80,17 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
 
   window.APP = storeData;
 
-// Check subscription status
+// Check subscription status against local DB
 try {
-  const subRes = await fetch(`/shopify/billing/status?shop=${shop}`);
-  const subData = await subRes.json();
-  const hasActiveSubscription = subData.subscriptions?.some(s => s.status === 'ACTIVE');
-  
-  if (!hasActiveSubscription) {
-    // Redirect to billing page
-    switchTab('billing');
+  const subRes  = await window.authFetch(`/merchant/subscription/${storeData.storeId}`);
+  const subData = subRes.ok ? await subRes.json() : { isSubscribed: false };
+
+  if (!subData.isSubscribed) {
+    navigate('billing');
     return;
   }
 } catch (err) {
-  this.logger.warn('Could not check subscription status:', err);
+  console.warn('Could not check subscription status:', err);
 }
 
   // ── 4. Render shell UI ───────────────────────────────────────────────────────

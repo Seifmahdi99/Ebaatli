@@ -11,17 +11,42 @@ async function loadBilling() {
 
   el.innerHTML = `<div class="loading"><div class="spinner"></div>Loading subscription info…</div>`;
 
-  // ── Fetch current subscription status ───────────────────────────────────────
-  let subscriptions = [];
-  try {
-    const res = await window.authFetch(`/shopify/billing/status?shop=${encodeURIComponent(shop)}`);
-    if (res.ok) {
-      const data = await res.json();
-      subscriptions = data.subscriptions || [];
-    }
-  } catch (_) { /* render as no active subscription */ }
+  // ── Fetch current subscription status ────────────────────────────────────────
+  // Step 1: local DB — always reliable, works for manually-inserted subscriptions
+  let active = null;
+  const storeId = window.APP?.storeId;
+  if (storeId) {
+    try {
+      const localRes  = await window.authFetch(`/merchant/subscription/${storeId}`);
+      const localData = localRes.ok ? await localRes.json() : { isSubscribed: false };
+      if (localData.isSubscribed) {
+        active = { currentPeriodEnd: null }; // confirmed active; renewal date enriched below
+      }
+    } catch (_) { /* treat as not subscribed */ }
+  }
 
-  const active = subscriptions.find(s => s.status === 'ACTIVE');
+  // Step 2: If active locally, try Shopify API just to get the renewal date (best-effort)
+  if (active) {
+    try {
+      const res = await window.authFetch(`/shopify/billing/status?shop=${encodeURIComponent(shop)}`);
+      if (res.ok) {
+        const data      = await res.json();
+        const shopifySub = (data.subscriptions || []).find(s => s.status === 'ACTIVE');
+        if (shopifySub?.currentPeriodEnd) active.currentPeriodEnd = shopifySub.currentPeriodEnd;
+      }
+    } catch (_) { /* no renewal date — not critical */ }
+  }
+
+  // Step 3: Not in local DB — check Shopify directly (real paid subscribers)
+  if (!active) {
+    try {
+      const res = await window.authFetch(`/shopify/billing/status?shop=${encodeURIComponent(shop)}`);
+      if (res.ok) {
+        const data = await res.json();
+        active = (data.subscriptions || []).find(s => s.status === 'ACTIVE') || null;
+      }
+    } catch (_) { /* render as no active subscription */ }
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   el.innerHTML = `

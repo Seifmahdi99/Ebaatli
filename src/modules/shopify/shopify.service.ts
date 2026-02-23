@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class ShopifyService {
+export class ShopifyService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ShopifyService.name);
 
   // In-memory nonce store for OAuth CSRF protection.
@@ -129,12 +129,21 @@ export class ShopifyService {
   }
 
   /**
-   * Register webhooks with Shopify
-   * So Shopify notifies us of events
+   * Register webhooks with Shopify.
+   * 1. List existing webhooks.
+   * 2. Delete any that point to a stale/wrong address (e.g. old ngrok tunnels).
+   * 3. Create only the webhooks that are missing for the current APP_URL.
    */
   async registerWebhooks(shop: string, accessToken: string) {
-    const appUrl = this.config.get<string>('APP_URL');
+    const appUrl  = this.config.get<string>('APP_URL');
+    const baseUrl = `https://${shop}/admin/api/2024-01`;
+    const authHdr = {
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json',
+    };
 
+<<<<<<< HEAD
+// Define webhooks with correct topic names (underscores, not slashes)
     const webhooks = [
       {
         topic: 'ORDERS_CREATE',
@@ -156,42 +165,74 @@ export class ShopifyService {
         topic: 'APP_UNINSTALLED',
         address: `${appUrl}/webhooks/shopify/uninstalled`,
       },
-
- {
-    topic: 'CUSTOMERS_DATA_REQUEST',
-    address: `${appUrl}/webhooks/shopify/customers/data_request`
-  },
-  {
-    topic: 'CUSTOMERS_REDACT',
-    address: `${appUrl}/webhooks/shopify/customers/redact`
-  },
-  {
-    topic: 'SHOP_REDACT',
-    address: `${appUrl}/webhooks/shopify/shop/redact`
-  }
-
+      {
+        topic: 'CUSTOMERS_DATA_REQUEST',
+        address: `${appUrl}/webhooks/shopify/customers/data_request`,
+      },
+      {
+        topic: 'CUSTOMERS_REDACT',
+        address: `${appUrl}/webhooks/shopify/customers/redact`,
+      },
+      {
+        topic: 'SHOP_REDACT',
+        address: `${appUrl}/webhooks/shopify/shop/redact`,
+      },
     ];
 
-    for (const webhook of webhooks) {
-      try {
-        const response = await fetch(
-          `https://${shop}/admin/api/2024-01/webhooks.json`,
-          {
-            method: 'POST',
-            headers: {
-              'X-Shopify-Access-Token': accessToken,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ webhook }),
-          }
-        );
+    // 1. Fetch the current webhook list from Shopify
+    const listRes  = await fetch(`${baseUrl}/webhooks.json`, { headers: authHdr });
+    const listData = await listRes.json() as any;
+    const existing: any[] = listData.webhooks || [];
+    this.logger.log(`📋 Found ${existing.length} existing webhook(s) for ${shop}`);
+    
+    // 2. Remove stale webhooks (addresses that don't start with the current APP_URL)
+    for (const wh of existing) {
+      if (!wh.address.startsWith(appUrl)) {
+        const delRes = await fetch(`${baseUrl}/webhooks/${wh.id}.json`, {
+          method: 'DELETE',
+          headers: authHdr,
+        });
+        if (delRes.ok || delRes.status === 404) {
+>>>>>>> 5e25fe3e2aed8db3ed76d81a7eedcc7a6e8c89b5
+    ];
 
-        const data = await response.json();
-        this.logger.log(`✅ Webhook registered: ${webhook.topic}`);
-      } catch (error) {
+    for (const webhook of desired) {
+      const alreadyOk = existing.some(
+        e => e.topic === webhook.topic && e.address === webhook.address,
+      );
+      if (alreadyOk) {
+        this.logger.log(`✓  Webhook already up-to-date: ${webhook.topic}`);
+        continue;
+      }
+      try {
+        const res  = await fetch(`${baseUrl}/webhooks.json`, {
+          method: 'POST',
+          headers: authHdr,
+          body: JSON.stringify({ webhook }),
+        });
+        const data = await res.json() as any;
+        if (res.ok && data.webhook) {
+          this.logger.log(`✅ Webhook registered: ${webhook.topic} → ${webhook.address}`);
+        } else {
+          this.logger.warn(
+            `⚠️  Webhook registration failed [${webhook.topic}]: ${JSON.stringify(data.errors || data)}`,
+          );
+        }
+      } catch (error: any) {
         this.logger.error(`❌ Failed to register webhook: ${webhook.topic}`, error);
       }
     }
+  }
+
+  /**
+   * Return the raw webhook list from Shopify (used by the diagnostic endpoint).
+   */
+  async listWebhooks(shop: string, accessToken: string) {
+    const res  = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
+      headers: { 'X-Shopify-Access-Token': accessToken },
+    });
+    const data = await res.json() as any;
+    return { webhooks: data.webhooks || [], total: (data.webhooks || []).length };
   }
 
   /**
@@ -347,7 +388,7 @@ verifyWebhook(rawBody: string, hmacHeader: string): boolean {
   async saveSubscriptionToDb(storeId: string, shopifySubscriptionId: string): Promise<void> {
     // Mark any existing active subscriptions as cancelled
     await this.prisma.subscription.updateMany({
-      where: { storeId, status: 'active' },
+      where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
       data: { status: 'cancelled' },
     });
 
@@ -368,7 +409,7 @@ await this.prisma.subscription.create({
    */
   async hasActiveSubscription(storeId: string): Promise<boolean> {
     const sub = await this.prisma.subscription.findFirst({
-      where: { storeId, status: 'active' },
+      where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
     });
     return !!sub;
   }
@@ -412,5 +453,25 @@ await this.prisma.subscription.create({
 
     const json = await response.json() as any;
     return json.data?.currentAppInstallation?.activeSubscriptions || [];
+  }
+
+  /**
+   * On startup, re-register webhooks for every active store so that the
+   * current APP_URL (production domain) is always registered with Shopify.
+   * This corrects stale webhook URLs (e.g. ngrok tunnels from development).
+   */
+  async onApplicationBootstrap() {
+    const stores = await this.prisma.store.findMany({
+      where: { status: 'active' },
+      select: { platformStoreId: true, accessToken: true },
+    });
+    this.logger.log(`🔁 Re-registering webhooks for ${stores.length} active store(s)…`);
+    for (const store of stores) {
+      try {
+        await this.registerWebhooks(store.platformStoreId, store.accessToken);
+      } catch (err: any) {
+        this.logger.warn(`Webhook refresh failed for ${store.platformStoreId}: ${err.message}`);
+      }
+    }
   }
 }

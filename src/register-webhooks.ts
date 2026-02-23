@@ -16,7 +16,7 @@ async function registerWebhooks() {
   console.log(`✅ Found store: ${store.name}`);
   console.log(`   Access Token: ${store.accessToken.substring(0, 10)}...`);
 
-  const appUrl = 'https://woundless-unrenewable-stan.ngrok-free.dev';
+  const appUrl = 'https://ebaatli.com';
   const webhooks = [
     { topic: 'orders/create', address: `${appUrl}/webhooks/shopify/orders/created` },
     { topic: 'orders/updated', address: `${appUrl}/webhooks/shopify/orders/updated` },
