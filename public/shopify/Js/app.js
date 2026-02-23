@@ -97,19 +97,7 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
     btn.addEventListener('click', () => navigate(btn.dataset.tab));
   });
 
-  // ── 6. Check subscription, then load default tab ──────────────────────────────
-  try {
-    const subRes  = await window.authFetch(`/merchant/subscription/${storeData.storeId}`);
-    const subData = subRes.ok ? await subRes.json() : { isSubscribed: false };
-
-    if (!subData.isSubscribed) {
-      navigate('billing');
-      return;
-    }
-  } catch (err) {
-    console.warn('Could not check subscription status:', err);
-  }
-
+  // ── 6. Load default tab ───────────────────────────────────────────────────────
   navigate('overview');
 })();
 
