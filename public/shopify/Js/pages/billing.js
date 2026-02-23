@@ -37,13 +37,19 @@ async function loadBilling() {
     } catch (_) { /* no renewal date — not critical */ }
   }
 
-  // Step 3: Not in local DB — check Shopify directly (real paid subscribers)
+  // Step 3: Not in local DB — check Shopify directly (real paid subscribers).
+  // If found active, also sync into the local DB so future app loads stop
+  // redirecting this customer back to the billing tab.
   if (!active) {
     try {
       const res = await window.authFetch(`/shopify/billing/status?shop=${encodeURIComponent(shop)}`);
       if (res.ok) {
         const data = await res.json();
         active = (data.subscriptions || []).find(s => s.status === 'ACTIVE') || null;
+        if (active) {
+          // Fire-and-forget: persist to local DB so the next app init finds it
+          window.authFetch(`/shopify/billing/sync?shop=${encodeURIComponent(shop)}`).catch(() => {});
+        }
       }
     } catch (_) { /* render as no active subscription */ }
   }

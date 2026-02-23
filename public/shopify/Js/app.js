@@ -80,20 +80,11 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
 
   window.APP = storeData;
 
-// Check subscription status against local DB
-try {
-  const subRes  = await window.authFetch(`/merchant/subscription/${storeData.storeId}`);
-  const subData = subRes.ok ? await subRes.json() : { isSubscribed: false };
-
-  if (!subData.isSubscribed) {
-    navigate('billing');
-    return;
-  }
-} catch (err) {
-  console.warn('Could not check subscription status:', err);
-}
-
   // ── 4. Render shell UI ───────────────────────────────────────────────────────
+  // Shell is always rendered first so tabs remain visible regardless of
+  // subscription state. Unsubscribed users land on the billing tab but can
+  // still navigate once they subscribe (or once the billing page syncs their
+  // Shopify subscription back into the local DB).
   document.getElementById('storeName').textContent = storeData.name || shop;
   document.getElementById('portalBtn').href =
     `/merchant/index.html?storeId=${storeData.storeId}`;
@@ -106,7 +97,19 @@ try {
     btn.addEventListener('click', () => navigate(btn.dataset.tab));
   });
 
-  // ── 6. Load default tab ───────────────────────────────────────────────────────
+  // ── 6. Check subscription, then load default tab ──────────────────────────────
+  try {
+    const subRes  = await window.authFetch(`/merchant/subscription/${storeData.storeId}`);
+    const subData = subRes.ok ? await subRes.json() : { isSubscribed: false };
+
+    if (!subData.isSubscribed) {
+      navigate('billing');
+      return;
+    }
+  } catch (err) {
+    console.warn('Could not check subscription status:', err);
+  }
+
   navigate('overview');
 })();
 

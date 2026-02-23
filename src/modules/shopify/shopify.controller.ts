@@ -148,6 +148,39 @@ async createSubscription(@Query('shop') shop: string, @Res() res: any) {
   }
 
   /**
+   * Sync subscription from Shopify into the local DB.
+   * Called by the billing page when it detects an active Shopify subscription
+   * that isn't yet reflected in the local DB (e.g. a previous billingSuccess
+   * callback failed to save).
+   */
+  @UseGuards(ShopifySessionGuard)
+  @Get('billing/sync')
+  async syncSubscription(@Query('shop') shop: string, @Res() res: any) {
+    if (!shop) {
+      return res.status(400).json({ error: 'shop parameter required' });
+    }
+
+    const store = await this.shopifyService.getStoreByShop(shop);
+    if (!store) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    try {
+      const subscriptions = await this.shopifyService.getSubscriptionStatus(shop, store.accessToken);
+      const active = subscriptions.find((s: any) => s.status === 'ACTIVE');
+      if (active) {
+        await this.shopifyService.saveSubscriptionToDb(store.id, active.id);
+        this.logger.log(`✅ Subscription synced for shop: ${shop}`);
+        return res.json({ synced: true });
+      }
+      return res.json({ synced: false });
+    } catch (err: any) {
+      this.logger.error('Failed to sync subscription:', err);
+      return res.status(500).json({ error: err.message || 'Failed to sync subscription' });
+    }
+  }
+
+  /**
    * Shopify redirects here after merchant confirms/cancels subscription.
    * Redirects back to the embedded app.
    */
