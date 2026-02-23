@@ -62,28 +62,32 @@ export class ShopifyService implements OnApplicationBootstrap {
   /**
    * Exchange authorization code for access token via Shopify OAuth.
    */
-  async exchangeToken(shop: string, code: string): Promise<string> {
-    const apiKey = this.config.get<string>('SHOPIFY_API_KEY');
-    const apiSecret = this.config.get<string>('SHOPIFY_API_SECRET');
 
-    const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        client_id: apiKey,
-        client_secret: apiSecret,
-        code,
-      }),
-    });
+async exchangeToken(shop: string, code: string): Promise<{ accessToken: string; scope: string }> {
+  const apiKey = this.config.get<string>('SHOPIFY_API_KEY');
+  const apiSecret = this.config.get<string>('SHOPIFY_API_SECRET');
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Failed to exchange token: ${text}`);
-    }
+  const response = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      client_id: apiKey,
+      client_secret: apiSecret,
+      code,
+    }),
+  });
 
-    const data = (await response.json()) as any;
-    return data.access_token;
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to exchange token: ${text}`);
   }
+
+  const data = (await response.json()) as any;
+  return {
+    accessToken: data.access_token,
+    scope: data.scope  // ← Shopify returns scope here!
+  };
+}
 
   /**
    * Save or update a store in the database.

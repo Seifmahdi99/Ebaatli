@@ -38,11 +38,12 @@ async callback(@Query() query: any, @Res() res: any) {
   }
 
   try {
-    // Exchange code for access token
-    const accessToken = await this.shopifyService.exchangeToken(shop, code);
-    
-    // Save store and get store info
-    const store = await this.shopifyService.saveStore(shop, accessToken, query.scope || '');
+   
+// Exchange code for access token and scope
+const { accessToken, scope } = await this.shopifyService.exchangeToken(shop, code);
+
+// Save store and get store info
+const store = await this.shopifyService.saveStore(shop, accessToken, scope);
     
     // Register webhooks
     await this.shopifyService.registerWebhooks(shop, accessToken);
