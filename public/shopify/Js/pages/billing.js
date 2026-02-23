@@ -21,7 +21,21 @@ async function loadBilling() {
     }
   } catch (_) { /* render as no active subscription */ }
 
-  const active = subscriptions.find(s => s.status === 'ACTIVE');
+  let active = subscriptions.find(s => s.status === 'ACTIVE');
+
+  // Fallback: check local DB (covers manually-inserted subscriptions)
+  if (!active) {
+    const storeId = window.APP?.storeId;
+    if (storeId) {
+      try {
+        const localRes  = await window.authFetch(`/merchant/subscription/${storeId}`);
+        const localData = localRes.ok ? await localRes.json() : { isSubscribed: false };
+        if (localData.isSubscribed) {
+          active = { currentPeriodEnd: null }; // no renewal date from local DB
+        }
+      } catch (_) { /* treat as no subscription */ }
+    }
+  }
 
   // ── Render ───────────────────────────────────────────────────────────────────
   el.innerHTML = `
