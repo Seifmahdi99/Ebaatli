@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 
 interface SendWhatsAppParams {
   to: string;
-  message: string;
+  message?: string;
   templateName?: string;
 }
 
