@@ -137,25 +137,39 @@ export class ShopifyService {
 
     const webhooks = [
       {
-        topic: 'orders/create',
+        topic: 'ORDERS_CREATE',
         address: `${appUrl}/webhooks/shopify/orders/created`,
       },
       {
-        topic: 'orders/updated',
+        topic: 'ORDERS_UPDATED',
         address: `${appUrl}/webhooks/shopify/orders/updated`,
       },
       {
-        topic: 'orders/cancelled',
+        topic: 'ORDERS_CANCELLED',
         address: `${appUrl}/webhooks/shopify/orders/cancelled`,
       },
       {
-        topic: 'checkouts/create',
+        topic: 'CHECKOUTS_CREATE',
         address: `${appUrl}/webhooks/shopify/checkouts/created`,
       },
       {
-        topic: 'app/uninstalled',
+        topic: 'APP_UNINSTALLED',
         address: `${appUrl}/webhooks/shopify/uninstalled`,
       },
+
+ {
+    topic: 'CUSTOMERS_DATA_REQUEST',
+    address: `${appUrl}/webhooks/shopify/customers/data_request`
+  },
+  {
+    topic: 'CUSTOMERS_REDACT',
+    address: `${appUrl}/webhooks/shopify/customers/redact`
+  },
+  {
+    topic: 'SHOP_REDACT',
+    address: `${appUrl}/webhooks/shopify/shop/redact`
+  }
+
     ];
 
     for (const webhook of webhooks) {
