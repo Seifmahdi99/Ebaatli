@@ -86,7 +86,7 @@ try {
   const subData = subRes.ok ? await subRes.json() : { isSubscribed: false };
 
   if (!subData.isSubscribed) {
-    switchTab('billing');
+    navigate('billing');
     return;
   }
 } catch (err) {

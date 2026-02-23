@@ -333,7 +333,7 @@ verifyWebhook(rawBody: string, hmacHeader: string): boolean {
   async saveSubscriptionToDb(storeId: string, shopifySubscriptionId: string): Promise<void> {
     // Mark any existing active subscriptions as cancelled
     await this.prisma.subscription.updateMany({
-      where: { storeId, status: 'active' },
+      where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
       data: { status: 'cancelled' },
     });
 
@@ -354,7 +354,7 @@ await this.prisma.subscription.create({
    */
   async hasActiveSubscription(storeId: string): Promise<boolean> {
     const sub = await this.prisma.subscription.findFirst({
-      where: { storeId, status: 'active' },
+      where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
     });
     return !!sub;
   }

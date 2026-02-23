@@ -113,7 +113,7 @@ export class MerchantService {
 
     async getSubscriptionStatus(storeId: string) {
         const sub = await this.prisma.subscription.findFirst({
-            where: { storeId, status: 'active' },
+            where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
             orderBy: { createdAt: 'desc' },
         });
         return { isSubscribed: !!sub, subscription: sub || null };

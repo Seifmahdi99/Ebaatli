@@ -7,7 +7,7 @@ export class FlowManagementService {
 
   private async requireSubscription(storeId: string): Promise<void> {
     const sub = await this.prisma.subscription.findFirst({
-      where: { storeId, status: 'active' },
+      where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
     });
     if (!sub) {
       throw new ForbiddenException(
