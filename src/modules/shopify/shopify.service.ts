@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as crypto from 'crypto';
 
 @Injectable()
-export class ShopifyService {
+export class ShopifyService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ShopifyService.name);
 
   // In-memory nonce store for OAuth CSRF protection.
@@ -398,5 +398,25 @@ await this.prisma.subscription.create({
 
     const json = await response.json() as any;
     return json.data?.currentAppInstallation?.activeSubscriptions || [];
+  }
+
+  /**
+   * On startup, re-register webhooks for every active store so that the
+   * current APP_URL (production domain) is always registered with Shopify.
+   * This corrects stale webhook URLs (e.g. ngrok tunnels from development).
+   */
+  async onApplicationBootstrap() {
+    const stores = await this.prisma.store.findMany({
+      where: { status: 'active' },
+      select: { platformStoreId: true, accessToken: true },
+    });
+    this.logger.log(`🔁 Re-registering webhooks for ${stores.length} active store(s)…`);
+    for (const store of stores) {
+      try {
+        await this.registerWebhooks(store.platformStoreId, store.accessToken);
+      } catch (err: any) {
+        this.logger.warn(`Webhook refresh failed for ${store.platformStoreId}: ${err.message}`);
+      }
+    }
   }
 }
