@@ -56,12 +56,21 @@ export class WhatsAppService {
       );
     }
 
-    const config = this.getGlobalConfig();
-    const to = this.formatPhone(params.to);
+const to = this.formatPhone(params.to);
 
-    const accessToken = store.whatsappAccessToken || config.accessToken;
-    const phoneNumberId = store.whatsappPhoneNumberId || config.phoneNumberId;
+// Use store credentials or fall back to global config
+let accessToken = store.whatsappAccessToken;
+let phoneNumberId = store.whatsappPhoneNumberId;
 
+if (!accessToken || !phoneNumberId) {
+  const config = this.getGlobalConfig(); // Only call if store credentials missing
+  accessToken = accessToken || config.accessToken;
+  phoneNumberId = phoneNumberId || config.phoneNumberId;
+}
+
+if (!accessToken || !phoneNumberId) {
+  throw new Error('WhatsApp credentials not configured for this store');
+}
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
 
     // Use template for test accounts - custom text requires production
