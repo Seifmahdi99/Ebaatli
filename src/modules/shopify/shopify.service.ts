@@ -90,7 +90,12 @@ export class ShopifyService implements OnApplicationBootstrap {
    */
   async saveStore(shop: string, accessToken: string, scope: string) {
     return this.prisma.store.upsert({
-      where: { platformStoreId: shop },
+      where: { 
+        platform_platformStoreId: {
+          platform: 'shopify',
+          platformStoreId: shop
+        }
+      },
       create: {
         platform: 'shopify',
         platformStoreId: shop,
@@ -117,7 +122,12 @@ export class ShopifyService implements OnApplicationBootstrap {
    */
   async getStoreByShop(shop: string) {
     return this.prisma.store.findUnique({
-      where: { platformStoreId: shop },
+      where: { 
+        platform_platformStoreId: {
+          platform: 'shopify',
+          platformStoreId: shop
+        }
+      },
     });
   }
 
@@ -222,6 +232,21 @@ export class ShopifyService implements OnApplicationBootstrap {
   }
 
   /**
+   * List all webhooks for a shop
+   */
+  async listWebhooks(shop: string, accessToken: string) {
+    const baseUrl = `https://${shop}/admin/api/2024-01`;
+    const response = await fetch(`${baseUrl}/webhooks.json`, {
+      headers: {
+        'X-Shopify-Access-Token': accessToken,
+        'Content-Type': 'application/json',
+      },
+    });
+    const data = await response.json() as any;
+    return data.webhooks || [];
+  }
+
+  /**
    * Verify a Shopify webhook using HMAC signature.
    */
   verifyWebhook(rawBody: string, hmacHeader: string): boolean {
@@ -305,13 +330,7 @@ export class ShopifyService implements OnApplicationBootstrap {
     });
 
     const json = await response.json() as any;
-    
-    // Debug logging
-    this.logger.log('Shopify billing API response:', JSON.stringify(json, null, 2));
-    
     const result = json.data?.appSubscriptionCreate;
-    
-    this.logger.log('Extracted result:', JSON.stringify(result, null, 2));
 
     if (!result || !result.confirmationUrl) {
       this.logger.error('Invalid result structure:', json);
@@ -369,6 +388,35 @@ export class ShopifyService implements OnApplicationBootstrap {
 
     const json = await response.json() as any;
     return json.data?.currentAppInstallation?.activeSubscriptions || [];
+  }
+
+  /**
+   * Get subscription status (alias for getActiveSubscriptions)
+   */
+  async getSubscriptionStatus(shop: string, accessToken: string) {
+    return this.getActiveSubscriptions(shop, accessToken);
+  }
+
+  /**
+   * Save subscription to database
+   */
+  async saveSubscriptionToDb(storeId: string, shopifySubscriptionId: string) {
+    return this.prisma.subscription.upsert({
+      where: {
+        store_id: storeId,
+      },
+      create: {
+        store_id: storeId,
+        shopify_subscription_id: shopifySubscriptionId,
+        status: 'ACTIVE',
+        tier: 'pro',
+        start_date: new Date(),
+      },
+      update: {
+        shopify_subscription_id: shopifySubscriptionId,
+        status: 'ACTIVE',
+      },
+    });
   }
 
   /**
