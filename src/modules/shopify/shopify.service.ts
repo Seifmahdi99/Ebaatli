@@ -207,24 +207,34 @@ export class ShopifyService {
    * Verify Shopify webhook signature
    * Security: make sure webhook is really from Shopify
    */
-  verifyWebhook(rawBody: string, hmacHeader: string): boolean {
-    // Shopify signs webhooks with the app's client secret (API secret)
-    const secret =
-      this.config.get<string>('SHOPIFY_WEBHOOK_SECRET') ||
-      this.config.get<string>('SHOPIFY_API_SECRET');
 
-    if (!secret) {
-      this.logger.error('No webhook secret configured for HMAC verification');
-      return false;
-    }
-
-    const hash = crypto
-      .createHmac('sha256', secret)
-      .update(rawBody, 'utf8')
-      .digest('base64');
-
-    return hash === hmacHeader;
+verifyWebhook(rawBody: string, hmacHeader: string): boolean {
+  const secret =
+    this.config.get<string>('SHOPIFY_WEBHOOK_SECRET') ||
+    this.config.get<string>('SHOPIFY_API_SECRET');
+  
+  if (!secret) {
+    this.logger.error('No webhook secret configured for HMAC verification');
+    return false;
   }
+  
+  const hash = crypto
+    .createHmac('sha256', secret)
+    .update(rawBody, 'utf8')
+    .digest('base64');
+  
+  const isValid = hash === hmacHeader;
+  
+  if (!isValid) {
+    this.logger.error('HMAC mismatch!', {
+      calculated: hash.substring(0, 20) + '...',
+      received: hmacHeader?.substring(0, 20) + '...',
+    });
+  }
+  
+  return isValid;
+}
+
 
   /**
    * Mark store as uninstalled
