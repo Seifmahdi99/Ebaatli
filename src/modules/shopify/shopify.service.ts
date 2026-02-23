@@ -129,55 +129,86 @@ export class ShopifyService implements OnApplicationBootstrap {
   }
 
   /**
-   * Register webhooks with Shopify
-   * So Shopify notifies us of events
+   * Register webhooks with Shopify.
+   * 1. List existing webhooks.
+   * 2. Delete any that point to a stale/wrong address (e.g. old ngrok tunnels).
+   * 3. Create only the webhooks that are missing for the current APP_URL.
    */
   async registerWebhooks(shop: string, accessToken: string) {
-    const appUrl = this.config.get<string>('APP_URL');
+    const appUrl  = this.config.get<string>('APP_URL');
+    const baseUrl = `https://${shop}/admin/api/2024-01`;
+    const authHdr = {
+      'X-Shopify-Access-Token': accessToken,
+      'Content-Type': 'application/json',
+    };
 
-    const webhooks = [
-      {
-        topic: 'orders/create',
-        address: `${appUrl}/webhooks/shopify/orders/created`,
-      },
-      {
-        topic: 'orders/updated',
-        address: `${appUrl}/webhooks/shopify/orders/updated`,
-      },
-      {
-        topic: 'orders/cancelled',
-        address: `${appUrl}/webhooks/shopify/orders/cancelled`,
-      },
-      {
-        topic: 'checkouts/create',
-        address: `${appUrl}/webhooks/shopify/checkouts/created`,
-      },
-      {
-        topic: 'app/uninstalled',
-        address: `${appUrl}/webhooks/shopify/uninstalled`,
-      },
+    // 1. Fetch the current webhook list from Shopify
+    const listRes  = await fetch(`${baseUrl}/webhooks.json`, { headers: authHdr });
+    const listData = await listRes.json() as any;
+    const existing: any[] = listData.webhooks || [];
+    this.logger.log(`📋 Found ${existing.length} existing webhook(s) for ${shop}`);
+
+    // 2. Remove stale webhooks (addresses that don't start with the current APP_URL)
+    for (const wh of existing) {
+      if (!wh.address.startsWith(appUrl)) {
+        const delRes = await fetch(`${baseUrl}/webhooks/${wh.id}.json`, {
+          method: 'DELETE',
+          headers: authHdr,
+        });
+        if (delRes.ok || delRes.status === 404) {
+          this.logger.log(`🗑️  Deleted stale webhook: ${wh.topic} → ${wh.address}`);
+        } else {
+          this.logger.warn(`⚠️  Could not delete stale webhook ${wh.id}: HTTP ${delRes.status}`);
+        }
+      }
+    }
+
+    // 3. Create any missing webhooks for the current APP_URL
+    const desired = [
+      { topic: 'orders/create',    address: `${appUrl}/webhooks/shopify/orders/created`    },
+      { topic: 'orders/updated',   address: `${appUrl}/webhooks/shopify/orders/updated`    },
+      { topic: 'orders/cancelled', address: `${appUrl}/webhooks/shopify/orders/cancelled`  },
+      { topic: 'checkouts/create', address: `${appUrl}/webhooks/shopify/checkouts/created` },
+      { topic: 'app/uninstalled',  address: `${appUrl}/webhooks/shopify/uninstalled`       },
     ];
 
-    for (const webhook of webhooks) {
+    for (const webhook of desired) {
+      const alreadyOk = existing.some(
+        e => e.topic === webhook.topic && e.address === webhook.address,
+      );
+      if (alreadyOk) {
+        this.logger.log(`✓  Webhook already up-to-date: ${webhook.topic}`);
+        continue;
+      }
       try {
-        const response = await fetch(
-          `https://${shop}/admin/api/2024-01/webhooks.json`,
-          {
-            method: 'POST',
-            headers: {
-              'X-Shopify-Access-Token': accessToken,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ webhook }),
-          }
-        );
-
-        const data = await response.json();
-        this.logger.log(`✅ Webhook registered: ${webhook.topic}`);
-      } catch (error) {
+        const res  = await fetch(`${baseUrl}/webhooks.json`, {
+          method: 'POST',
+          headers: authHdr,
+          body: JSON.stringify({ webhook }),
+        });
+        const data = await res.json() as any;
+        if (res.ok && data.webhook) {
+          this.logger.log(`✅ Webhook registered: ${webhook.topic} → ${webhook.address}`);
+        } else {
+          this.logger.warn(
+            `⚠️  Webhook registration failed [${webhook.topic}]: ${JSON.stringify(data.errors || data)}`,
+          );
+        }
+      } catch (error: any) {
         this.logger.error(`❌ Failed to register webhook: ${webhook.topic}`, error);
       }
     }
+  }
+
+  /**
+   * Return the raw webhook list from Shopify (used by the diagnostic endpoint).
+   */
+  async listWebhooks(shop: string, accessToken: string) {
+    const res  = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
+      headers: { 'X-Shopify-Access-Token': accessToken },
+    });
+    const data = await res.json() as any;
+    return { webhooks: data.webhooks || [], total: (data.webhooks || []).length };
   }
 
   /**
