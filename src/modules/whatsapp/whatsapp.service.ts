@@ -1,8 +1,8 @@
 import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
-import { HttpService } from '@nestjs/axios';
-import { firstValueFrom } from 'rxjs';
-import { PrismaService } from '../prisma/prisma.service';
 import { ConfigService } from '@nestjs/config';
+import { HttpService } from '@nestjs/axios';
+import { PrismaService } from '../prisma/prisma.service';
+import { firstValueFrom } from 'rxjs';
 
 interface SendWhatsAppParams {
   to: string;
@@ -22,18 +22,16 @@ export class WhatsAppService {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private getGlobalConfig() {
     const accessToken = this.config.get<string>('WHATSAPP_ACCESS_TOKEN');
     const phoneNumberId = this.config.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-
     if (!accessToken || !phoneNumberId) {
       throw new Error('WhatsApp credentials not configured');
     }
-
     return { accessToken, phoneNumberId };
   }
 
@@ -56,35 +54,33 @@ export class WhatsAppService {
       );
     }
 
-const to = this.formatPhone(params.to);
+    const to = this.formatPhone(params.to);
 
-// Use store credentials or fall back to global config
-let accessToken = store.whatsappAccessToken;
-let phoneNumberId = store.whatsappPhoneNumberId;
+    // Use store credentials first, fall back to global
+    let accessToken = store.whatsappAccessToken;
+    let phoneNumberId = store.whatsappPhoneNumberId;
 
-if (!accessToken || !phoneNumberId) {
-  const config = this.getGlobalConfig(); // Only call if store credentials missing
-  accessToken = accessToken || config.accessToken;
-  phoneNumberId = phoneNumberId || config.phoneNumberId;
-}
+    if (!accessToken || !phoneNumberId) {
+      const config = this.getGlobalConfig();
+      accessToken = accessToken || config.accessToken;
+      phoneNumberId = phoneNumberId || config.phoneNumberId;
+    }
 
-if (!accessToken || !phoneNumberId) {
-  throw new Error('WhatsApp credentials not configured for this store');
-}
+    if (!accessToken || !phoneNumberId) {
+      throw new Error('WhatsApp credentials not configured for this store');
+    }
+
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
 
     // Use template for test accounts - custom text requires production
     const payload = {
       messaging_product: 'whatsapp',
       to: to,
-      type: 'template',
-      template: {
-        name: 'hello_world',
-        language: { code: 'en_US' },
-      },
+      type: 'text',
+      text: { body: params.message },
     };
 
-    this.logger.log(`Sending WhatsApp to ${to} (Store: ${store.name}, Mode: template)`);
+    this.logger.log(`Sending WhatsApp message to ${to}`);
 
     try {
       const response = await firstValueFrom(
@@ -96,15 +92,8 @@ if (!accessToken || !phoneNumberId) {
         })
       );
 
-      const data = response.data as WhatsAppResponse;
-
       await this.incrementUsage(storeId);
-
-      this.logger.log(
-        `✅ WhatsApp sent! MsgID: ${data.messages[0].id}, Store: ${store.name} (${store.whatsappQuotaUsed + 1}/${store.whatsappQuotaAllocated})`
-      );
-
-      return data;
+      return response.data as WhatsAppResponse;
     } catch (error: any) {
       this.logger.error('❌ WhatsApp Error:', error.response?.data || error.message);
       throw this.handleError(error);
@@ -124,10 +113,21 @@ if (!accessToken || !phoneNumberId) {
       throw new ForbiddenException('WhatsApp quota exceeded');
     }
 
-    const config = this.getGlobalConfig();
     const to = this.formatPhone(params.to);
-    const accessToken = store.whatsappAccessToken || config.accessToken;
-    const phoneNumberId = store.whatsappPhoneNumberId || config.phoneNumberId;
+
+    // Use store credentials first, fall back to global
+    let accessToken = store.whatsappAccessToken;
+    let phoneNumberId = store.whatsappPhoneNumberId;
+
+    if (!accessToken || !phoneNumberId) {
+      const config = this.getGlobalConfig();
+      accessToken = accessToken || config.accessToken;
+      phoneNumberId = phoneNumberId || config.phoneNumberId;
+    }
+
+    if (!accessToken || !phoneNumberId) {
+      throw new Error('WhatsApp credentials not configured for this store');
+    }
 
     const url = `https://graph.facebook.com/v18.0/${phoneNumberId}/messages`;
 
@@ -156,7 +156,6 @@ if (!accessToken || !phoneNumberId) {
       );
 
       await this.incrementUsage(storeId);
-
       return response.data as WhatsAppResponse;
     } catch (error: any) {
       this.logger.error('❌ WhatsApp Template Error:', error.response?.data || error.message);
@@ -165,26 +164,10 @@ if (!accessToken || !phoneNumberId) {
   }
 
   private formatPhone(phone: string): string {
-    let cleaned = phone.replace(/\D/g, '');
-    
-    if (cleaned.startsWith('+')) {
-      cleaned = cleaned.substring(1);
-    }
-    
-    if (cleaned.startsWith('20')) {
-      return cleaned;
-    }
-    if (cleaned.startsWith('0')) {
-      return '20' + cleaned.substring(1);
-    }
-    if (cleaned.startsWith('1')) {
-      return '20' + cleaned;
-    }
-    
-    return '20' + cleaned;
+    return phone.replace(/\D/g, '');
   }
 
-  private async incrementUsage(storeId: string) {
+  private async incrementUsage(storeId: string): Promise<void> {
     await this.prisma.store.update({
       where: { id: storeId },
       data: { whatsappQuotaUsed: { increment: 1 } },
@@ -192,43 +175,7 @@ if (!accessToken || !phoneNumberId) {
   }
 
   private handleError(error: any): Error {
-    const message = error.response?.data?.error?.message || error.message;
-    return new Error('WhatsApp failed: ' + message);
-  }
-
-  async getQuotaStatus(storeId: string) {
-    const store = await this.prisma.store.findUnique({
-      where: { id: storeId },
-      select: {
-        whatsappEnabled: true,
-        whatsappQuotaAllocated: true,
-        whatsappQuotaUsed: true,
-        whatsappQuotaResetDate: true,
-      },
-    });
-
-    if (!store) {
-      throw new Error('Store not found');
-    }
-
-    return {
-      enabled: store.whatsappEnabled,
-      allocated: store.whatsappQuotaAllocated,
-      used: store.whatsappQuotaUsed,
-      remaining: store.whatsappQuotaAllocated - store.whatsappQuotaUsed,
-      resetDate: store.whatsappQuotaResetDate,
-    };
-  }
-
-  async enableWhatsApp(storeId: string, quota: number = 50) {
-    await this.prisma.store.update({
-      where: { id: storeId },
-      data: {
-        whatsappEnabled: true,
-        whatsappQuotaAllocated: quota,
-        whatsappQuotaUsed: 0,
-        whatsappQuotaResetDate: new Date(),
-      },
-    });
+    const message = error.response?.data?.error?.message || error.message || 'WhatsApp API error';
+    return new Error(message);
   }
 }
