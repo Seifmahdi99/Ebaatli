@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  UnauthorizedException,
+  OnApplicationBootstrap,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import * as crypto from 'crypto';
@@ -6,11 +11,10 @@ import * as crypto from 'crypto';
 @Injectable()
 export class ShopifyService implements OnApplicationBootstrap {
   private readonly logger = new Logger(ShopifyService.name);
-
-  // In-memory nonce store for OAuth CSRF protection.
-  // Maps nonce → expiry timestamp (ms). Nonces expire after 10 minutes.
+  
+  // Store pending OAuth nonces (state values) in-memory
   private readonly pendingNonces = new Map<string, number>();
-  private static readonly NONCE_TTL_MS = 10 * 60 * 1000; // 10 minutes
+  private static readonly NONCE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   constructor(
     private readonly prisma: PrismaService,
@@ -30,10 +34,9 @@ export class ShopifyService implements OnApplicationBootstrap {
 
     // Store nonce with expiry
     this.pendingNonces.set(nonce, Date.now() + ShopifyService.NONCE_TTL_MS);
-    // Clean up any expired nonces while we're here
-    this.purgeExpiredNonces();
 
-    const authUrl = `https://${shop}/admin/oauth/authorize` +
+    const authUrl =
+      `https://${shop}/admin/oauth/authorize` +
       `?client_id=${apiKey}` +
       `&scope=${scopes}` +
       `&redirect_uri=${redirectUri}` +
@@ -56,16 +59,8 @@ export class ShopifyService implements OnApplicationBootstrap {
     return true;
   }
 
-  private purgeExpiredNonces(): void {
-    const now = Date.now();
-    for (const [nonce, expiry] of this.pendingNonces) {
-      if (now > expiry) this.pendingNonces.delete(nonce);
-    }
-  }
-
   /**
-   * Exchange code for access token
-   * Called after merchant approves our app
+   * Exchange authorization code for access token via Shopify OAuth.
    */
   async exchangeToken(shop: string, code: string): Promise<string> {
     const apiKey = this.config.get<string>('SHOPIFY_API_KEY');
@@ -81,51 +76,49 @@ export class ShopifyService implements OnApplicationBootstrap {
       }),
     });
 
-    const data = await response.json() as { access_token: string; scope: string };
-    
-    if (!data.access_token) {
-      throw new Error('Failed to get access token from Shopify');
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Failed to exchange token: ${text}`);
     }
 
-    this.logger.log(`✅ Got access token for shop: ${shop}`);
+    const data = (await response.json()) as any;
     return data.access_token;
   }
 
   /**
-   * Save store to database after installation
+   * Save or update a store in the database.
    */
   async saveStore(shop: string, accessToken: string, scope: string) {
-    const storeInfo = await this.getShopInfo(shop, accessToken);
-
-    const store = await this.prisma.store.upsert({
-      where: {
-        platform_platformStoreId: {
-          platform: 'shopify',
-          platformStoreId: shop,
-        }
-      },
+    return this.prisma.store.upsert({
+      where: { platformStoreId: shop },
       create: {
         platform: 'shopify',
         platformStoreId: shop,
-        name: storeInfo.name,
-        timezone: storeInfo.timezone || 'Africa/Cairo',
-        currency: storeInfo.currency || 'EGP',
-        accessToken: accessToken,
-        scope: scope,
+        name: shop.replace('.myshopify.com', ''),
+        accessToken,
+        scope,
         status: 'active',
-        smsQuotaAllocated: 50, // Free tier default
-        smsQuotaUsed: 0,
+        timezone: '(GMT+00:00) UTC',
+        currency: 'USD',
+        smsQuotaAllocated: 50,
+        whatsappQuotaAllocated: 0,
       },
       update: {
-        accessToken: accessToken,
-        scope: scope,
+        accessToken,
+        scope,
         status: 'active',
-        name: storeInfo.name,
+        updatedAt: new Date(),
       },
     });
+  }
 
-    this.logger.log(`✅ Store saved: ${shop} (ID: ${store.id})`);
-    return store;
+  /**
+   * Retrieve store by shop domain.
+   */
+  async getStoreByShop(shop: string) {
+    return this.prisma.store.findUnique({
+      where: { platformStoreId: shop },
+    });
   }
 
   /**
@@ -142,9 +135,8 @@ export class ShopifyService implements OnApplicationBootstrap {
       'Content-Type': 'application/json',
     };
 
-<<<<<<< HEAD
-// Define webhooks with correct topic names (underscores, not slashes)
-    const webhooks = [
+    // Define webhooks with correct topic names (underscores, not slashes)
+    const desired = [
       {
         topic: 'ORDERS_CREATE',
         address: `${appUrl}/webhooks/shopify/orders/created`,
@@ -193,9 +185,12 @@ export class ShopifyService implements OnApplicationBootstrap {
           headers: authHdr,
         });
         if (delRes.ok || delRes.status === 404) {
->>>>>>> 5e25fe3e2aed8db3ed76d81a7eedcc7a6e8c89b5
-    ];
+          this.logger.log(`🗑️  Deleted stale webhook: ${wh.topic} → ${wh.address}`);
+        }
+      }
+    }
 
+    // 3. Create missing webhooks
     for (const webhook of desired) {
       const alreadyOk = existing.some(
         e => e.topic === webhook.topic && e.address === webhook.address,
@@ -204,6 +199,7 @@ export class ShopifyService implements OnApplicationBootstrap {
         this.logger.log(`✓  Webhook already up-to-date: ${webhook.topic}`);
         continue;
       }
+
       try {
         const res  = await fetch(`${baseUrl}/webhooks.json`, {
           method: 'POST',
@@ -211,6 +207,7 @@ export class ShopifyService implements OnApplicationBootstrap {
           body: JSON.stringify({ webhook }),
         });
         const data = await res.json() as any;
+
         if (res.ok && data.webhook) {
           this.logger.log(`✅ Webhook registered: ${webhook.topic} → ${webhook.address}`);
         } else {
@@ -218,108 +215,55 @@ export class ShopifyService implements OnApplicationBootstrap {
             `⚠️  Webhook registration failed [${webhook.topic}]: ${JSON.stringify(data.errors || data)}`,
           );
         }
-      } catch (error: any) {
-        this.logger.error(`❌ Failed to register webhook: ${webhook.topic}`, error);
+      } catch (err: any) {
+        this.logger.error(`Error registering ${webhook.topic}: ${err.message}`);
       }
     }
   }
 
   /**
-   * Return the raw webhook list from Shopify (used by the diagnostic endpoint).
+   * Verify a Shopify webhook using HMAC signature.
    */
-  async listWebhooks(shop: string, accessToken: string) {
-    const res  = await fetch(`https://${shop}/admin/api/2024-01/webhooks.json`, {
-      headers: { 'X-Shopify-Access-Token': accessToken },
-    });
-    const data = await res.json() as any;
-    return { webhooks: data.webhooks || [], total: (data.webhooks || []).length };
+  verifyWebhook(rawBody: string, hmacHeader: string): boolean {
+    // Shopify signs webhooks with the app's client secret (API secret)
+    const secret =
+      this.config.get<string>('SHOPIFY_WEBHOOK_SECRET') ||
+      this.config.get<string>('SHOPIFY_API_SECRET');
+
+    if (!secret) {
+      this.logger.error('No webhook secret configured for HMAC verification');
+      return false;
+    }
+
+    const hash = crypto
+      .createHmac('sha256', secret)
+      .update(rawBody, 'utf8')
+      .digest('base64');
+
+    const isValid = hash === hmacHeader;
+
+    if (!isValid) {
+      this.logger.error('HMAC mismatch!', {
+        calculated: hash.substring(0, 20) + '...',
+        received: hmacHeader?.substring(0, 20) + '...',
+      });
+    }
+
+    return isValid;
   }
-
-  /**
-   * Get shop information from Shopify
-   */
-  async getShopInfo(shop: string, accessToken: string) {
-    const response = await fetch(
-      `https://${shop}/admin/api/2024-01/shop.json`,
-      {
-        headers: {
-          'X-Shopify-Access-Token': accessToken,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    const data = await response.json() as { shop: any };
-    return {
-      name: data.shop.name,
-      email: data.shop.email,
-      timezone: data.shop.timezone,
-      currency: data.shop.currency,
-    };
-  }
-
-  /**
-   * Verify Shopify webhook signature
-   * Security: make sure webhook is really from Shopify
-   */
-
-verifyWebhook(rawBody: string, hmacHeader: string): boolean {
-  const secret =
-    this.config.get<string>('SHOPIFY_WEBHOOK_SECRET') ||
-    this.config.get<string>('SHOPIFY_API_SECRET');
-  
-  if (!secret) {
-    this.logger.error('No webhook secret configured for HMAC verification');
-    return false;
-  }
-  
-  const hash = crypto
-    .createHmac('sha256', secret)
-    .update(rawBody, 'utf8')
-    .digest('base64');
-  
-  const isValid = hash === hmacHeader;
-  
-  if (!isValid) {
-    this.logger.error('HMAC mismatch!', {
-      calculated: hash.substring(0, 20) + '...',
-      received: hmacHeader?.substring(0, 20) + '...',
-    });
-  }
-  
-  return isValid;
-}
-
 
   /**
    * Mark store as uninstalled
    */
   async uninstallStore(shop: string) {
     await this.prisma.store.updateMany({
-      where: {
-        platform: 'shopify',
-        platformStoreId: shop,
-      },
+      where: { platformStoreId: shop },
       data: { status: 'uninstalled' },
     });
-    this.logger.log(`Store uninstalled: ${shop}`);
   }
 
   /**
-   * Get store by shop domain
-   */
-  async getStoreByShop(shop: string) {
-    return await this.prisma.store.findFirst({
-      where: {
-        platform: 'shopify',
-        platformStoreId: shop,
-        status: 'active',
-      },
-    });
-  }
-
-  /**
-   * Create a $20/month recurring subscription via Shopify Billing API
+   * Create a subscription charge via Shopify Billing API.
    */
   async createSubscription(shop: string, accessToken: string): Promise<{ confirmationUrl: string; subscriptionId: string }> {
     const appUrl = this.config.get<string>('APP_URL');
@@ -361,11 +305,16 @@ verifyWebhook(rawBody: string, hmacHeader: string): boolean {
     });
 
     const json = await response.json() as any;
+    
+    // Debug logging
     this.logger.log('Shopify billing API response:', JSON.stringify(json, null, 2));
+    
     const result = json.data?.appSubscriptionCreate;
-     this.logger.log('Extracted result:', JSON.stringify(result, null, 2));
+    
+    this.logger.log('Extracted result:', JSON.stringify(result, null, 2));
+
     if (!result || !result.confirmationUrl) {
- this.logger.error('Invalid result structure:', json);
+      this.logger.error('Invalid result structure:', json);
       throw new Error('Invalid response from Shopify billing API');
     }
 
@@ -382,42 +331,9 @@ verifyWebhook(rawBody: string, hmacHeader: string): boolean {
   }
 
   /**
-   * Save a confirmed Shopify subscription to the local database.
-   * Cancels any previous active subscriptions for the store first.
+   * Fetch active subscriptions for a shop.
    */
-  async saveSubscriptionToDb(storeId: string, shopifySubscriptionId: string): Promise<void> {
-    // Mark any existing active subscriptions as cancelled
-    await this.prisma.subscription.updateMany({
-      where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
-      data: { status: 'cancelled' },
-    });
-
-    // Create the new active subscription record
-await this.prisma.subscription.create({
-  data: {
-    storeId,
-    tier: 'pro',
-    status: 'active',
-    startDate: new Date(),
-  },
-});
-    this.logger.log(`✅ Subscription saved to DB for store: ${storeId}`);
-  }
-
-  /**
-   * Check if a store has an active subscription in the local database.
-   */
-  async hasActiveSubscription(storeId: string): Promise<boolean> {
-    const sub = await this.prisma.subscription.findFirst({
-      where: { storeId, status: { equals: 'active', mode: 'insensitive' } },
-    });
-    return !!sub;
-  }
-
-  /**
-   * Get active subscriptions for a shop via Shopify Billing API
-   */
-  async getSubscriptionStatus(shop: string, accessToken: string): Promise<any[]> {
+  async getActiveSubscriptions(shop: string, accessToken: string): Promise<any[]> {
     const query = `
       query {
         currentAppInstallation {
@@ -425,8 +341,6 @@ await this.prisma.subscription.create({
             id
             name
             status
-            createdAt
-            currentPeriodEnd
             lineItems {
               plan {
                 pricingDetails {
@@ -437,6 +351,8 @@ await this.prisma.subscription.create({
                 }
               }
             }
+            createdAt
+            currentPeriodEnd
           }
         }
       }
@@ -465,7 +381,9 @@ await this.prisma.subscription.create({
       where: { status: 'active' },
       select: { platformStoreId: true, accessToken: true },
     });
+
     this.logger.log(`🔁 Re-registering webhooks for ${stores.length} active store(s)…`);
+
     for (const store of stores) {
       try {
         await this.registerWebhooks(store.platformStoreId, store.accessToken);
