@@ -21,14 +21,22 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
   if (window.shopify?.auth?.getSessionToken) {
     window.authFetch = async (url, options = {}) => {
       try {
-        const token = await window.shopify.auth.getSessionToken();
+        // Race against a 3-second timeout — if App Bridge hasn't completed its
+        // postMessage handshake with the Shopify Admin parent frame yet, the
+        // promise would hang forever without this guard.
+        const token = await Promise.race([
+          window.shopify.auth.getSessionToken(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('session token timeout')), 3000),
+          ),
+        ]);
         const headers = {
           ...(options.headers || {}),
           Authorization: `Bearer ${token}`,
         };
         return fetch(url, { ...options, headers });
       } catch (e) {
-        console.warn('Session token fetch failed, falling back:', e.message);
+        console.warn('Session token fetch failed, falling back to plain fetch:', e.message);
         return fetch(url, options);
       }
     };
