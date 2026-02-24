@@ -8,7 +8,6 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
 (async function init() {
   const params = new URLSearchParams(window.location.search);
   const shop   = params.get('shop');
-  const host   = params.get('host') || '';
 
   // ── 1. Validate shop param ──────────────────────────────────────────────────
   if (!shop) {
@@ -16,34 +15,23 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
     return;
   }
 
-  // ── 2. Load Shopify App Bridge from Shopify's CDN + session-token fetch ─────
-  try {
-    const cfgRes = await fetch('/shopify/config');
-    if (cfgRes.ok) {
-      const { apiKey } = await cfgRes.json();
-      if (apiKey) {
-        await loadAppBridge(apiKey);
-
-        // Use the new App Bridge CDN session token API
-        if (window.shopify?.auth?.getSessionToken) {
-          window.authFetch = async (url, options = {}) => {
-            try {
-              const token = await window.shopify.auth.getSessionToken();
-              const headers = {
-                ...(options.headers || {}),
-                Authorization: `Bearer ${token}`,
-              };
-              return fetch(url, { ...options, headers });
-            } catch (e) {
-              console.warn('Session token fetch failed, falling back:', e.message);
-              return fetch(url, options);
-            }
-          };
-        }
+  // ── 2. Set up session-token-aware fetch ──────────────────────────────────────
+  // App Bridge is loaded synchronously from Shopify's CDN before this script,
+  // so window.shopify is already initialised here.
+  if (window.shopify?.auth?.getSessionToken) {
+    window.authFetch = async (url, options = {}) => {
+      try {
+        const token = await window.shopify.auth.getSessionToken();
+        const headers = {
+          ...(options.headers || {}),
+          Authorization: `Bearer ${token}`,
+        };
+        return fetch(url, { ...options, headers });
+      } catch (e) {
+        console.warn('Session token fetch failed, falling back:', e.message);
+        return fetch(url, options);
       }
-    }
-  } catch (e) {
-    console.log('App Bridge init:', e.message);
+    };
   }
 
   // ── 3. Look up store by shop domain ────────────────────────────────────────
@@ -89,19 +77,6 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
   // ── 6. Load default tab ───────────────────────────────────────────────────────
   navigate('overview');
 })();
-
-// Loads App Bridge from Shopify's CDN with the API key embedded in the script tag.
-// The CDN script auto-initializes and exposes window.shopify.
-function loadAppBridge(apiKey) {
-  return new Promise((resolve) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
-    script.setAttribute('data-api-key', apiKey);
-    script.onload = resolve;
-    script.onerror = resolve; // degrade gracefully if CDN unreachable
-    document.head.appendChild(script);
-  });
-}
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
 function navigate(tab) {
