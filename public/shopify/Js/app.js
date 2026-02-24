@@ -16,25 +16,19 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
     return;
   }
 
-  // ── 2. Initialize Shopify App Bridge + session-token-aware fetch ────────────
-  let app = null;
-  const AppBridge      = window['@shopify/app-bridge'];
-  const AppBridgeUtils = window['@shopify/app-bridge-utils'];
-
+  // ── 2. Load Shopify App Bridge from Shopify's CDN + session-token fetch ─────
   try {
     const cfgRes = await fetch('/shopify/config');
     if (cfgRes.ok) {
       const { apiKey } = await cfgRes.json();
-      if (apiKey && host && AppBridge) {
-        app = AppBridge.createApp({ apiKey, host });
-        window.shopifyApp = app;
+      if (apiKey) {
+        await loadAppBridge(apiKey);
 
-        // Build an authenticated fetch that attaches a short-lived Shopify
-        // session token to every request as  Authorization: Bearer <token>
-        if (AppBridgeUtils?.getSessionToken) {
+        // Use the new App Bridge CDN session token API
+        if (window.shopify?.auth?.getSessionToken) {
           window.authFetch = async (url, options = {}) => {
             try {
-              const token = await AppBridgeUtils.getSessionToken(app);
+              const token = await window.shopify.auth.getSessionToken();
               const headers = {
                 ...(options.headers || {}),
                 Authorization: `Bearer ${token}`,
@@ -59,12 +53,7 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
     if (res.status === 404) {
       // Store not installed — redirect to install endpoint
       const installUrl = `/shopify/install?shop=${encodeURIComponent(shop)}`;
-
-      if (app && AppBridge) {
-        const Redirect = AppBridge.actions.Redirect;
-        const redirect = Redirect.create(app);
-        redirect.dispatch(Redirect.Action.APP, installUrl);
-      } else if (window.top !== window.self) {
+      if (window.top && window.top !== window.self) {
         window.top.location.href = window.location.origin + installUrl;
       } else {
         window.location.href = installUrl;
@@ -101,14 +90,17 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
   navigate('overview');
 })();
 
-async function getApiKey() {
-  try {
-    const res = await fetch('/shopify/config');
-    const { apiKey } = await res.json();
-    return apiKey;
-  } catch {
-    return '';
-  }
+// Loads App Bridge from Shopify's CDN with the API key embedded in the script tag.
+// The CDN script auto-initializes and exposes window.shopify.
+function loadAppBridge(apiKey) {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdn.shopify.com/shopifycloud/app-bridge.js';
+    script.setAttribute('data-api-key', apiKey);
+    script.onload = resolve;
+    script.onerror = resolve; // degrade gracefully if CDN unreachable
+    document.head.appendChild(script);
+  });
 }
 
 // ── Navigation ─────────────────────────────────────────────────────────────────
