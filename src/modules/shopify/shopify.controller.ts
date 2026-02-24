@@ -23,7 +23,7 @@ export class ShopifyController {
   @Get('embedded-app')
   serveEmbeddedApp(@Res() res: Response) {
     const apiKey = this.config.get<string>('SHOPIFY_API_KEY') || '';
-    const templatePath = join(process.cwd(), 'public', 'shopify', 'index.html');
+    const templatePath = join(process.cwd(), 'public', 'shopify', '_app-template.html');
     const html = readFileSync(templatePath, 'utf8').replace('__SHOPIFY_API_KEY__', apiKey);
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
