@@ -1,5 +1,7 @@
 import { Controller, Get, Query, Res, Logger, UseGuards } from '@nestjs/common';
 import type { Response } from 'express';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ShopifyService } from './shopify.service';
 import { ConfigService } from '@nestjs/config';
 import { ShopifySessionGuard } from '../../guards/shopify-session.guard';
@@ -12,6 +14,20 @@ export class ShopifyController {
     private readonly shopifyService: ShopifyService,
     private readonly config: ConfigService,
   ) {}
+
+  /**
+   * Serves the Shopify embedded app HTML with the API key injected into the
+   * App Bridge <script> tag. The script must be synchronous and first in <head>
+   * — Shopify's CDN check rejects async/dynamic injection.
+   */
+  @Get('embedded-app')
+  serveEmbeddedApp(@Res() res: Response) {
+    const apiKey = this.config.get<string>('SHOPIFY_API_KEY') || '';
+    const templatePath = join(process.cwd(), 'public', 'shopify', 'index.html');
+    const html = readFileSync(templatePath, 'utf8').replace('__SHOPIFY_API_KEY__', apiKey);
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  }
 
   @Get('install')
   install(@Query('shop') shop: string, @Res() res: Response) {
@@ -50,9 +66,9 @@ const store = await this.shopifyService.saveStore(shop, accessToken, scope);
     
     this.logger.log(`✅ App installed successfully for: ${shop}`);
     
-    // Redirect to Shopify embedded app
+    // Redirect to Shopify embedded app (served with API key injected)
     const host = query.host || '';
-    const embeddedUrl = `/app/index.html?shop=${shop}&host=${host}`;
+    const embeddedUrl = `/shopify/embedded-app?shop=${shop}&host=${host}`;
     return res.redirect(embeddedUrl);
   } catch (error) {
     this.logger.error('OAuth callback failed:', error);
@@ -202,6 +218,6 @@ async createSubscription(@Query('shop') shop: string, @Res() res: any) {
       }
     }
 
-    return res.redirect(`/app/index.html?shop=${encodeURIComponent(shop)}`);
+    return res.redirect(`/shopify/embedded-app?shop=${encodeURIComponent(shop)}`);
   }
 }

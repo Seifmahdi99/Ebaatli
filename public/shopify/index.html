@@ -5,6 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Ebaatli</title>
 
+  <!--
+    App Bridge MUST be the first <script> tag, loaded synchronously (no async/defer)
+    from Shopify's CDN. The API key placeholder is replaced at request time by
+    the /shopify/embedded-app controller endpoint.
+  -->
+  <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" data-api-key="__SHOPIFY_API_KEY__"></script>
+
   <link rel="stylesheet" href="Styles/main.css" />
 </head>
 <body>
@@ -46,8 +53,6 @@
       Connecting to your store…
     </div>
   </main>
-
-  <!-- App Bridge is loaded dynamically in app.js from Shopify's CDN -->
 
   <!-- Page scripts (loaded before app.js so functions exist) -->
   <script src="Js/pages/overview.js"></script>
