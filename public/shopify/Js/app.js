@@ -8,6 +8,16 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
 (async function init() {
   const params = new URLSearchParams(window.location.search);
   const shop   = params.get('shop');
+  const host   = params.get('host');
+
+  // ── Diagnostics: log environment so we can confirm bridge + token status ──
+  console.group('[Ebaatli] App Bridge diagnostics');
+  console.log('shop param :', shop || '(missing)');
+  console.log('host param :', host ? `${host.slice(0, 20)}…` : '(missing)');
+  console.log('window.shopify      :', typeof window.shopify);
+  console.log('getSessionToken fn  :', typeof window.shopify?.auth?.getSessionToken);
+  console.log('in iframe           :', window.self !== window.top);
+  console.groupEnd();
 
   // ── 1. Validate shop param ──────────────────────────────────────────────────
   if (!shop) {
@@ -19,6 +29,7 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
   // App Bridge is loaded synchronously from Shopify's CDN before this script,
   // so window.shopify is already initialised here.
   if (window.shopify?.auth?.getSessionToken) {
+    console.log('[Ebaatli] App Bridge present — using session token auth');
     window.authFetch = async (url, options = {}) => {
       try {
         // Race against a 3-second timeout — if App Bridge hasn't completed its
@@ -30,16 +41,19 @@ window.authFetch = fetch.bind(window); // plain fetch fallback
             setTimeout(() => reject(new Error('session token timeout')), 3000),
           ),
         ]);
+        console.log('[Ebaatli] Session token obtained:', token.slice(0, 30) + '…');
         const headers = {
           ...(options.headers || {}),
           Authorization: `Bearer ${token}`,
         };
         return fetch(url, { ...options, headers });
       } catch (e) {
-        console.warn('Session token fetch failed, falling back to plain fetch:', e.message);
+        console.warn('[Ebaatli] Session token fetch failed, falling back to plain fetch:', e.message);
         return fetch(url, options);
       }
     };
+  } else {
+    console.warn('[Ebaatli] App Bridge NOT available — requests will be unauthenticated');
   }
 
   // ── 3. Look up store by shop domain ────────────────────────────────────────
