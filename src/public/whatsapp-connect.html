@@ -2,51 +2,112 @@
 <html>
 <head>
   <title>Connect WhatsApp Business</title>
-  <script src="https://connect.facebook.net/en_US/sdk.js"></script>
 </head>
 <body>
   <h1>Connect Your WhatsApp Business Account</h1>
-  <button id="connect-btn">Connect WhatsApp</button>
-  
+
+  <div id="alerts"></div>
+  <button id="connect-btn" onclick="launchWhatsAppSignup()">Connect with Facebook</button>
+
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const storeId = urlParams.get('storeId');
-    
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId: '2083972588839965',
-        cookie: true,
-        xfbml: true,
-        version: 'v18.0'
-      });
-    };
+    const storeId   = urlParams.get('storeId');
 
-    document.getElementById('connect-btn').addEventListener('click', function() {
+    // Shared state — populated from two async sources
+    let _signupData = {};
+
+    // Register postMessage listener before launching the flow
+    window.addEventListener('message', function(event) {
+      if (!event.origin || !event.origin.endsWith('facebook.com')) return;
+
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type !== 'WA_EMBEDDED_SIGNUP') return;
+
+        if (data.event === 'FINISH') {
+          _signupData.phone_number_id = data.data.phone_number_id;
+          _signupData.waba_id         = data.data.waba_id;
+          console.log('[WhatsApp] postMessage FINISH:', data.data);
+          tryCompleteSignup();
+        } else if (data.event === 'CANCEL') {
+          showAlert('Signup cancelled at step: ' + data.data.current_step);
+        } else if (data.event === 'ERROR') {
+          showAlert('Signup error: ' + data.data.error_message);
+        }
+      } catch (e) {
+        // Non-JSON message — ignore
+      }
+    });
+
+    function launchWhatsAppSignup() {
+      _signupData = {};
+
       FB.login(function(response) {
         if (response.authResponse) {
-          const accessToken = response.authResponse.accessToken;
-          
-          // Send token to backend
-          fetch('/whatsapp/save-credentials', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              storeId: storeId,
-              accessToken: accessToken
-            })
-          }).then(res => res.json())
-            .then(data => {
-              alert('WhatsApp Connected Successfully!');
-              window.close();
-            });
+          _signupData.code = response.authResponse.code;
+          console.log('[WhatsApp] FB.login auth code received');
+          tryCompleteSignup();
         } else {
-          alert('Login cancelled');
+          showAlert('Facebook login was cancelled or not authorized.');
         }
       }, {
-        scope: 'whatsapp_business_messaging,whatsapp_business_management',
-        auth_type: 'rerequest'
+        config_id: '26422865924018466',
+        response_type: 'code',
+        override_default_response_type: true,
+        extras: { sessionInfoVersion: '3' },
       });
-    });
+    }
+
+    async function tryCompleteSignup() {
+      if (!_signupData.code || !_signupData.waba_id || !_signupData.phone_number_id) return;
+
+      showAlert('⏳ Connecting…');
+
+      try {
+        const res = await fetch('/admin/store/' + storeId + '/whatsapp-embedded-signup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code:            _signupData.code,
+            phone_number_id: _signupData.phone_number_id,
+            waba_id:         _signupData.waba_id,
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({ message: 'Connection failed' }));
+          throw new Error(err.message || 'HTTP ' + res.status);
+        }
+
+        showAlert('✅ WhatsApp Connected Successfully!');
+        document.getElementById('connect-btn').style.display = 'none';
+      } catch (err) {
+        showAlert('❌ ' + err.message);
+      }
+    }
+
+    function showAlert(msg) {
+      document.getElementById('alerts').textContent = msg;
+    }
+
+    // Load Facebook SDK asynchronously
+    window.fbAsyncInit = function() {
+      FB.init({
+        appId  : '2083972588839965',
+        cookie : true,
+        xfbml  : true,
+        version: 'v22.0'
+      });
+      FB.AppEvents.logPageView();
+    };
+
+    (function(d, s, id) {
+      var js, fjs = d.getElementsByTagName(s)[0];
+      if (d.getElementById(id)) { return; }
+      js = d.createElement(s); js.id = id;
+      js.src = 'https://connect.facebook.net/en_US/sdk.js';
+      fjs.parentNode.insertBefore(js, fjs);
+    }(document, 'script', 'facebook-jssdk'));
   </script>
 </body>
 </html>

@@ -1,3 +1,81 @@
+// ── whatsapp.js — Merchant Portal ─────────────────────────────────────────────
+// Meta Embedded Signup: FB.login gives us the auth code; postMessage gives us
+// waba_id + phone_number_id. Both must arrive before we call the backend.
+
+// Shared state — populated from two async sources
+let _signupData = {};
+
+// Register postMessage listener once at load time
+window.addEventListener('message', function(event) {
+  if (!event.origin || !event.origin.endsWith('facebook.com')) return;
+
+  try {
+    const data = JSON.parse(event.data);
+    if (data.type !== 'WA_EMBEDDED_SIGNUP') return;
+
+    if (data.event === 'FINISH') {
+      _signupData.phone_number_id = data.data.phone_number_id;
+      _signupData.waba_id         = data.data.waba_id;
+      console.log('[WhatsApp] postMessage FINISH:', data.data);
+      tryCompleteSignup();
+    } else if (data.event === 'CANCEL') {
+      showWaAlert('error', 'Signup cancelled at step: ' + data.data.current_step);
+    } else if (data.event === 'ERROR') {
+      showWaAlert('error', 'Signup error: ' + data.data.error_message);
+    }
+  } catch (e) {
+    // Non-JSON message from another origin — ignore
+  }
+});
+
+// Called by the Connect button
+function launchWhatsAppSignup() {
+  _signupData = {}; // reset on each new attempt
+
+  FB.login(function(response) {
+    if (response.authResponse) {
+      _signupData.code = response.authResponse.code;
+      console.log('[WhatsApp] FB.login auth code received');
+      tryCompleteSignup();
+    } else {
+      showWaAlert('error', 'Facebook login was cancelled or not authorized.');
+    }
+  }, {
+    config_id: '26422865924018466',
+    response_type: 'code',
+    override_default_response_type: true,
+    extras: { sessionInfoVersion: '3' },
+  });
+}
+
+// Fires once BOTH the auth code AND the WABA data have arrived
+async function tryCompleteSignup() {
+  if (!_signupData.code || !_signupData.waba_id || !_signupData.phone_number_id) return;
+
+  const storeId = localStorage.getItem('storeId');
+  showWaAlert('info', '⏳ Connecting your WhatsApp Business account…');
+
+  try {
+    await api.post(`/admin/store/${storeId}/whatsapp-embedded-signup`, {
+      code:            _signupData.code,
+      phone_number_id: _signupData.phone_number_id,
+      waba_id:         _signupData.waba_id,
+    });
+
+    showWaAlert('success', '✅ WhatsApp connected! Refreshing…');
+    setTimeout(() => loadWhatsapp(), 1500);
+  } catch (err) {
+    showWaAlert('error', '❌ ' + err.message);
+  }
+}
+
+function showWaAlert(type, message) {
+  const el = document.getElementById('alerts');
+  if (!el) return;
+  const cls = { info: '', success: 'alert-success', error: 'alert-error' };
+  el.innerHTML = `<div class="alert ${cls[type]}">${message}</div>`;
+}
+
 async function loadWhatsapp() {
     const storeId = localStorage.getItem('storeId');
     if (!storeId) return;
@@ -32,103 +110,20 @@ async function loadWhatsapp() {
           <div style="text-align:center;padding:20px 20px 40px">
             <div style="font-size:3rem;margin-bottom:15px">💬</div>
             <h2>Connect Your WhatsApp Business Account</h2>
-            <p style="color:var(--text-muted);margin:15px 0">Enter your WhatsApp Business API credentials</p>
+            <p style="color:var(--text-muted);margin:15px 0">Click the button below to connect via Facebook</p>
           </div>
-          <div id="alerts"></div>
-          <form id="whatsappForm">
-            <div class="form-group">
-              <label>Phone Number ID</label>
-              <input type="text" id="phoneNumberId" class="form-control" placeholder="1234567890123" required />
-              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">Found in Meta Business Settings</p>
-            </div>
-            <div class="form-group">
-              <label>Business Account ID (WABA)</label>
-              <input type="text" id="wabaId" class="form-control" placeholder="9876543210987" required />
-            </div>
-            <div class="form-group">
-              <label>Access Token</label>
-              <input type="password" id="accessToken" class="form-control" placeholder="EAA..." required />
-              <p style="font-size:0.75rem;color:var(--text-muted);margin-top:6px">System User Token from Meta</p>
-            </div>
-            <div style="background:rgba(139,92,246,0.08);padding:20px;border-radius:10px;margin:20px 0">
-              <h4 style="font-size:0.9rem;margin-bottom:12px">📚 How to get credentials:</h4>
-              <ol style="margin:0;padding-left:20px;font-size:0.85rem;line-height:1.8">
-                <li>Go to Meta Business Settings</li>
-                <li>System Users → Create System User</li>
-                <li>Generate Token with WhatsApp permissions</li>
-                <li>Copy credentials above</li>
-              </ol>
-            </div>
-            <button type="submit" class="btn btn-primary" style="width:100%">🔗 Connect WhatsApp</button>
-          </form>
+          <div id="alerts" style="margin-bottom:16px"></div>
+          <div style="text-align:center">
+            <button class="btn btn-primary" onclick="launchWhatsAppSignup()">
+              Connect with Facebook
+            </button>
+          </div>
         </div>
       `;
-            document.getElementById('whatsappForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                await saveWhatsAppCredentials();
-            });
         }
     } catch (err) {
         document.getElementById('pageContent').innerHTML =
             `<div class="alert alert-error">Failed to load WhatsApp status: ${err.message}</div>`;
-    }
-}
-
-async function saveWhatsAppCredentials() {
-    const storeId = localStorage.getItem('storeId');
-    const alertsEl = document.getElementById('alerts');
-
-    const phoneNumberId = document.getElementById('phoneNumberId').value;
-    const wabaId = document.getElementById('wabaId').value;
-    const accessToken = document.getElementById('accessToken').value;
-
-    if (!phoneNumberId || !wabaId || !accessToken) {
-        alertsEl.innerHTML = '<div class="alert alert-error">❌ All fields are required</div>';
-        return;
-    }
-
-    if (!/^\d+$/.test(phoneNumberId)) {
-        alertsEl.innerHTML = '<div class="alert alert-error">❌ Phone Number ID should contain only numbers</div>';
-        return;
-    }
-
-    if (!/^\d+$/.test(wabaId)) {
-        alertsEl.innerHTML = '<div class="alert alert-error">❌ Business Account ID should contain only numbers</div>';
-        return;
-    }
-
-    if (!accessToken.startsWith('EAA')) {
-        alertsEl.innerHTML = '<div class="alert alert-error">❌ Access Token should start with "EAA"</div>';
-        return;
-    }
-
-    try {
-        const btn = document.querySelector('#whatsappForm .btn-primary');
-        btn.textContent = '⏳ Validating credentials...';
-        btn.disabled = true;
-
-        await api.patch(`/admin/store/${storeId}/whatsapp-credentials`, {
-            whatsappAccessToken: accessToken,
-            whatsappPhoneNumberId: phoneNumberId,
-            whatsappBusinessAccountId: wabaId,
-            whatsappEnabled: true,
-        });
-
-        alertsEl.innerHTML = '<div class="alert alert-success">✅ Credentials validated successfully! Connecting...</div>';
-        setTimeout(() => loadWhatsapp(), 2000);
-    } catch (err) {
-        const btn = document.querySelector('#whatsappForm .btn-primary');
-        btn.textContent = '🔗 Connect WhatsApp';
-        btn.disabled = false;
-
-        alertsEl.innerHTML = `
-      <div class="alert alert-error">
-        <strong>❌ Connection Failed</strong><br>
-        ${err.message}
-        <br><br>
-        <small>Please verify your credentials in Meta Business Settings and try again.</small>
-      </div>
-    `;
     }
 }
 

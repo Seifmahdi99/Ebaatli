@@ -130,6 +130,68 @@ async verifyAdminKey(@Body() body: { key: string }) {
   }
 
   /**
+   * WhatsApp Embedded Signup — exchanges Meta auth code for BISU token,
+   * subscribes app to WABA webhooks, then saves credentials.
+   */
+  @Post('store/:storeId/whatsapp-embedded-signup')
+  async whatsappEmbeddedSignup(
+    @Param('storeId') storeId: string,
+    @Body() body: { code: string; phone_number_id: string; waba_id: string },
+  ) {
+    const { code, phone_number_id, waba_id } = body;
+
+    if (!code || !phone_number_id || !waba_id) {
+      throw new BadRequestException('code, phone_number_id and waba_id are required');
+    }
+
+    const appId     = process.env.META_APP_ID;
+    const appSecret = process.env.META_APP_SECRET;
+
+    if (!appId || !appSecret) {
+      throw new BadRequestException('META_APP_ID / META_APP_SECRET not configured on server');
+    }
+
+    // 1. Exchange auth code for Business Integration System User (BISU) token
+    const tokenUrl = `https://graph.facebook.com/v22.0/oauth/access_token?client_id=${appId}&client_secret=${appSecret}&code=${code}`;
+    const tokenRes = await fetch(tokenUrl);
+    const tokenData = await tokenRes.json() as { access_token?: string; error?: { message?: string } };
+
+    if (!tokenRes.ok || !tokenData.access_token) {
+      throw new BadRequestException(
+        `Meta token exchange failed: ${tokenData.error?.message || 'Unknown error'}`,
+      );
+    }
+
+    const accessToken = tokenData.access_token;
+
+    // 2. Subscribe our app to the WABA to receive webhook events
+    const subRes = await fetch(`https://graph.facebook.com/v22.0/${waba_id}/subscribed_apps`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const subData = await subRes.json() as { success?: boolean; error?: { message?: string } };
+
+    if (!subRes.ok || !subData.success) {
+      throw new BadRequestException(
+        `WABA webhook subscription failed: ${subData.error?.message || 'Unknown error'}`,
+      );
+    }
+
+    // 3. Save credentials
+    await this.prisma.store.update({
+      where: { id: storeId },
+      data: {
+        whatsappAccessToken:        accessToken,
+        whatsappPhoneNumberId:      phone_number_id,
+        whatsappBusinessAccountId:  waba_id,
+        whatsappEnabled:            true,
+      },
+    });
+
+    return { success: true, message: 'WhatsApp connected via Embedded Signup' };
+  }
+
+  /**
    * Set WhatsApp credentials for a store
    */
   @Patch('store/:storeId/whatsapp-credentials')
